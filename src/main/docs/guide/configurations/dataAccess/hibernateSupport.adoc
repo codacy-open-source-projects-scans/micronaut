@@ -1,0 +1,18 @@
+==== Setting up a Hibernate/JPA EntityManager
+
+[TIP]
+.Using the CLI
+====
+If you create your project using the Micronaut CLI, supply the `hibernate-jpa` feature to include a Hibernate JPA configuration in your project:
+----
+$ mn create-app my-app --features hibernate-jpa
+----
+====
+
+The Micronaut framework includes support for configuring a https://hibernate.org[Hibernate] / JPA `EntityManager` that builds on the <<sqlSupport, SQL DataSource support>>.
+
+Once you have <<sqlSupport, configured one or more DataSources>> to use Hibernate, add the `hibernate-jpa` dependency to your build:
+
+dependency:micronaut-hibernate-jpa[groupId="io.micronaut.sql"]
+
+For more information see the https://micronaut-projects.github.io/micronaut-sql/latest/guide/#hibernate[Configuring Hibernate] section of the https://github.com/micronaut-projects/micronaut-sql[Micronaut SQL libraries] project.

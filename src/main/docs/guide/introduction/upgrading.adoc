@@ -1,0 +1,7 @@
+=== Upgrading between Micronaut Framework versions
+
+Check https://micronaut-projects.github.io/micronaut-upgrade/snapshot/[Micronaut Upgrade] documentation to help you upgrade your Micronaut applications.
+
+=== Breaking Changes
+
+Review the section on <<breaks, Breaking Changes>> and update your affected application code.

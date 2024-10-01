@@ -1,0 +1,17 @@
+plugins {
+    id 'groovy-gradle-plugin'
+}
+
+repositories {
+    mavenCentral()
+    gradlePluginPortal()
+}
+
+dependencies {
+    implementation libs.htmlsanitycheck
+    implementation libs.micronaut.build.plugins
+
+    implementation libs.tomlj
+    implementation libs.japicmp.gradle.plugin
+    implementation libs.native.gradle.plugin
+}

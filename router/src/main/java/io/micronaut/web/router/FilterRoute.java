@@ -1,0 +1,108 @@
+/*
+ * Copyright 2017-2020 original authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package io.micronaut.web.router;
+
+import io.micronaut.core.annotation.NonNull;
+import io.micronaut.core.annotation.Nullable;
+import io.micronaut.http.HttpMethod;
+import io.micronaut.http.annotation.FilterMatcher;
+import io.micronaut.http.filter.FilterPatternStyle;
+import io.micronaut.http.filter.GenericHttpFilter;
+import io.micronaut.http.filter.HttpFilter;
+import io.micronaut.http.filter.HttpFilterResolver;
+
+import java.net.URI;
+import java.util.Optional;
+
+/**
+ * A filter route is a route that matches an {@link HttpFilter}.
+ *
+ * @author Graeme Rocher
+ * @since 1.0
+ */
+public interface FilterRoute extends HttpFilterResolver.FilterEntry {
+
+    /**
+     * If it's a pre-matching filter, the one being executed before the route is resolved.
+     * @return true if pre-matching
+     * @since 4.6
+     */
+    default boolean isPreMatching() {
+        return false;
+    }
+
+    /**
+     * Returns the matching annotation. See {@link io.micronaut.http.annotation.FilterMatcher}.
+     * @return The matching annotation or null
+     * @since 4.6
+     */
+    @Nullable
+    default String findMatchingAnnotation() {
+        return getAnnotationMetadata().getAnnotationNameByStereotype(FilterMatcher.NAME).orElse(null);
+    }
+
+    /**
+     * @return The filter for this {@link FilterRoute}
+     */
+    @Override
+    @NonNull
+    GenericHttpFilter getFilter();
+
+    /**
+     * Matches the given path to this filter route.
+     *
+     * @param method The HTTP method
+     * @param uri    The URI
+     * @return An {@link Optional} of {@link HttpFilter}
+     * @deprecated Replaced with {@link #match(HttpMethod, String)}.
+     */
+    @Deprecated(forRemoval = true, since = "4.3.0")
+    Optional<GenericHttpFilter> match(HttpMethod method, URI uri);
+
+    /**
+     * Matches the given path to this filter route.
+     *
+     * @param method The HTTP method
+     * @param path   The path
+     * @return An {@link Optional} of {@link HttpFilter}
+     * @since 4.3.0
+     */
+    Optional<GenericHttpFilter> match(HttpMethod method, String path);
+
+    /**
+     * Add an addition pattern to this filter route.
+     *
+     * @param pattern The pattern
+     * @return This route
+     */
+    FilterRoute pattern(String pattern);
+
+    /**
+     * Restrict the methods this filter route matches.
+     *
+     * @param methods The methods
+     * @return This route
+     */
+    FilterRoute methods(HttpMethod... methods);
+
+    /**
+     * Sets the pattern style that this filter route matches.
+     *
+     * @param patternStyle The pattern style
+     * @return This route
+     */
+    FilterRoute patternStyle(FilterPatternStyle patternStyle);
+}

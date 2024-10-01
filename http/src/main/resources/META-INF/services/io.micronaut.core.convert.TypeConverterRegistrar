@@ -1,0 +1,2 @@
+io.micronaut.http.HttpTypeConverterRegistrar
+io.micronaut.http.converters.SharedHttpConvertersRegistrar

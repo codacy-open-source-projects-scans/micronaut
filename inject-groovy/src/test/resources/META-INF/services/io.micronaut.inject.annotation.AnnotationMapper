@@ -1,0 +1,2 @@
+io.micronaut.aop.compile.AroundCompileSpec$NamedTestAnnMapper
+io.micronaut.inject.annotation.EmbeddableMapper
