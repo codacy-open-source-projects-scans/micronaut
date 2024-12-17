@@ -18,6 +18,7 @@ package io.micronaut.http.client.netty;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.NonNull;
 import io.micronaut.core.annotation.Nullable;
+import io.micronaut.core.execution.ExecutionFlow;
 import io.micronaut.core.naming.NameUtils;
 import io.micronaut.core.propagation.PropagatedContext;
 import io.micronaut.core.reflect.InstantiationUtils;
@@ -73,6 +74,7 @@ import io.netty.handler.codec.http2.Http2StreamChannelBootstrap;
 import io.netty.handler.codec.http2.Http2StreamFrameToHttpObjectCodec;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
+import io.netty.handler.pcap.PcapWriteHandler;
 import io.netty.handler.proxy.HttpProxyHandler;
 import io.netty.handler.proxy.Socks5ProxyHandler;
 import io.netty.handler.ssl.ApplicationProtocolNames;
@@ -110,15 +112,17 @@ import io.netty.util.concurrent.ScheduledFuture;
 import org.slf4j.Logger;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
-import reactor.core.scheduler.Schedulers;
 
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLParameters;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.net.SocketAddress;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -128,6 +132,7 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -140,6 +145,8 @@ import java.util.function.Supplier;
  */
 @Internal
 public class ConnectionManager {
+
+    final NettyClientCustomizer clientCustomizer;
 
     private final HttpVersionSelection httpVersion;
     private final Logger log;
@@ -161,7 +168,6 @@ public class ConnectionManager {
     private volatile SslContext sslContext;
     private volatile /* QuicSslContext */ Object http3SslContext;
     private volatile SslContext websocketSslContext;
-    private final NettyClientCustomizer clientCustomizer;
     private final String informationalServiceId;
 
     /**
@@ -187,6 +193,7 @@ public class ConnectionManager {
         this.clientCustomizer = from.clientCustomizer;
         this.informationalServiceId = from.informationalServiceId;
         this.nettyClientSslBuilder = from.nettyClientSslBuilder;
+        this.running.set(from.running.get());
     }
 
     ConnectionManager(
@@ -291,6 +298,15 @@ public class ConnectionManager {
      */
     public final ByteBufAllocator alloc() {
         return (ByteBufAllocator) bootstrap.config().options().getOrDefault(ChannelOption.ALLOCATOR, ByteBufAllocator.DEFAULT);
+    }
+
+    /**
+     * Returns event loop group.
+     *
+     * @return the group
+     */
+    EventLoopGroup getGroup() {
+        return group;
     }
 
     /**
@@ -438,7 +454,7 @@ public class ConnectionManager {
      * @param channelInitializer The initializer to use
      * @return Future that terminates when the TCP connection is established.
      */
-    ChannelFuture doConnect(DefaultHttpClient.RequestKey requestKey, ChannelInitializer<?> channelInitializer) {
+    ChannelFuture doConnect(DefaultHttpClient.RequestKey requestKey, CustomizerAwareInitializer channelInitializer) {
         String host = requestKey.getHost();
         int port = requestKey.getPort();
         Bootstrap localBootstrap = bootstrap.clone();
@@ -446,8 +462,10 @@ public class ConnectionManager {
         if (proxy.type() != Proxy.Type.DIRECT) {
             localBootstrap.resolver(NoopAddressResolverGroup.INSTANCE);
         }
-        localBootstrap.handler(channelInitializer);
-        return localBootstrap.connect(host, port);
+        localBootstrap.handler(channelInitializer)
+            .remoteAddress(host, port);
+        channelInitializer.bootstrappedCustomizer = clientCustomizer.specializeForBootstrap(localBootstrap);
+        return localBootstrap.connect();
     }
 
     /**
@@ -474,10 +492,10 @@ public class ConnectionManager {
      * Get a connection for non-websocket http client methods.
      *
      * @param requestKey The remote to connect to
-     * @param blockHint Optional information about what threads are blocked for this connection request
+     * @param blockHint  Optional information about what threads are blocked for this connection request
      * @return A mono that will complete once the channel is ready for transmission
      */
-    public final Mono<PoolHandle> connect(DefaultHttpClient.RequestKey requestKey, @Nullable BlockHint blockHint) {
+    public final ExecutionFlow<PoolHandle> connect(DefaultHttpClient.RequestKey requestKey, @Nullable BlockHint blockHint) {
         return pools.computeIfAbsent(requestKey, Pool::new).acquire(blockHint);
     }
 
@@ -518,7 +536,7 @@ public class ConnectionManager {
     final Mono<?> connectForWebsocket(DefaultHttpClient.RequestKey requestKey, ChannelHandler handler) {
         Sinks.Empty<Object> initial = new CancellableMonoSink<>(null);
 
-        ChannelFuture connectFuture = doConnect(requestKey, new ChannelInitializer<Channel>() {
+        ChannelFuture connectFuture = doConnect(requestKey, new CustomizerAwareInitializer() {
             @Override
             protected void initChannel(@NonNull Channel ch) {
                 addLogHandler(ch);
@@ -546,7 +564,7 @@ public class ConnectionManager {
                         ch.pipeline().addLast(WebSocketClientCompressionHandler.INSTANCE);
                     }
                     ch.pipeline().addLast(ChannelPipelineCustomizer.HANDLER_MICRONAUT_WEBSOCKET_CLIENT, handler);
-                    clientCustomizer.specializeForChannel(ch, NettyClientCustomizer.ChannelRole.CONNECTION).onInitialPipelineBuilt();
+                    bootstrappedCustomizer.specializeForChannel(ch, NettyClientCustomizer.ChannelRole.CONNECTION).onInitialPipelineBuilt();
                     if (initial.tryEmitEmpty().isSuccess()) {
                         return;
                     }
@@ -665,6 +683,91 @@ public class ConnectionManager {
         });
     }
 
+    private void insertPcapLoggingHandlerLazy(Channel ch, String qualifier) {
+        if (configuration.getPcapLoggingPathPattern() == null) {
+            return;
+        }
+
+        if (ch.isActive()) {
+            ChannelHandler actual = createPcapLoggingHandler(ch, qualifier);
+            ch.pipeline().addLast("pcap-" + qualifier, actual);
+        } else {
+            ch.pipeline().addLast(new ChannelInboundHandlerAdapter() {
+                @Override
+                public void channelActive(ChannelHandlerContext ctx) throws Exception {
+                    ChannelHandler actual = createPcapLoggingHandler(ch, qualifier);
+                    ctx.pipeline().addBefore(ctx.name(), "pcap-" + qualifier, actual);
+                    ctx.pipeline().remove(ctx.name());
+
+                    super.channelActive(ctx);
+                }
+            });
+        }
+    }
+
+    @Nullable
+    private ChannelHandler createPcapLoggingHandler(Channel ch, String qualifier) {
+        String pattern = configuration.getPcapLoggingPathPattern();
+        if (pattern == null) {
+            return null;
+        }
+
+        String path = pattern;
+        path = path.replace("{qualifier}", qualifier);
+        if (ch.localAddress() != null) {
+            path = path.replace("{localAddress}", resolveIfNecessary(ch.localAddress()));
+        }
+        if (ch.remoteAddress() != null) {
+            path = path.replace("{remoteAddress}", resolveIfNecessary(ch.remoteAddress()));
+        }
+        if (udpBootstrap != null && ch instanceof QuicStreamChannel qsc) {
+            path = path.replace("{localAddress}", resolveIfNecessary(qsc.parent().localSocketAddress()));
+            path = path.replace("{remoteAddress}", resolveIfNecessary(qsc.parent().remoteSocketAddress()));
+        }
+        path = path.replace("{random}", Long.toHexString(ThreadLocalRandom.current().nextLong()));
+        path = path.replace("{timestamp}", Instant.now().toString());
+
+        path = path.replace(':', '_'); // for windows
+
+        log.warn("Logging *full* request data, as configured. This will contain sensitive information! Path: '{}'", path);
+
+        try {
+            PcapWriteHandler.Builder builder = PcapWriteHandler.builder();
+
+            if (udpBootstrap != null && ch instanceof QuicStreamChannel qsc) {
+                builder.forceTcpChannel((InetSocketAddress) qsc.parent().localSocketAddress(), (InetSocketAddress) qsc.parent().remoteSocketAddress(), true);
+            }
+
+            return builder.build(new FileOutputStream(path));
+        } catch (FileNotFoundException e) {
+            log.warn("Failed to create target pcap at '{}', not logging.", path, e);
+            return null;
+        }
+    }
+
+    /**
+     * Force resolution of the given address, and then transform it to string. This prevents any potential user data
+     * appearing in the file path
+     */
+    private String resolveIfNecessary(SocketAddress address) {
+        if (address instanceof InetSocketAddress socketAddress) {
+            if (socketAddress.isUnresolved()) {
+                // try resolution
+                socketAddress = new InetSocketAddress(socketAddress.getHostString(), socketAddress.getPort());
+                if (socketAddress.isUnresolved()) {
+                    // resolution failed, bail
+                    return "unresolved";
+                }
+            }
+            return socketAddress.getAddress().getHostAddress() + ':' + socketAddress.getPort();
+        }
+        String s = address.toString();
+        if (s.contains("/")) {
+            return "weird";
+        }
+        return s;
+    }
+
     /**
      * Initializer for HTTP2 multiplexing, called either in h2c mode, or after ALPN in TLS. The
      * channel should already contain a {@link #makeFrameCodec() frame codec} that does the HTTP2
@@ -741,11 +844,15 @@ public class ConnectionManager {
         return HttpClientExceptionUtils.populateServiceId(exc, informationalServiceId, configuration);
     }
 
+    abstract static class CustomizerAwareInitializer extends ChannelInitializer<Channel> {
+        NettyClientCustomizer bootstrappedCustomizer;
+    }
+
     /**
      * Initializer for TLS channels. After ALPN we will proceed either with
      * {@link #initHttp1(Channel)} or {@link #initHttp2(Pool, Channel, NettyClientCustomizer)}.
      */
-    private final class AdaptiveAlpnChannelInitializer extends ChannelInitializer<Channel> {
+    private final class AdaptiveAlpnChannelInitializer extends CustomizerAwareInitializer {
         private final Pool pool;
 
         private final SslContext sslContext;
@@ -767,12 +874,17 @@ public class ConnectionManager {
          */
         @Override
         protected void initChannel(@NonNull Channel ch) {
-            NettyClientCustomizer channelCustomizer = clientCustomizer.specializeForChannel(ch, NettyClientCustomizer.ChannelRole.CONNECTION);
+            NettyClientCustomizer channelCustomizer = bootstrappedCustomizer.specializeForChannel(ch, NettyClientCustomizer.ChannelRole.CONNECTION);
+
+            insertPcapLoggingHandlerLazy(ch, "outer");
 
             configureProxy(ch.pipeline(), true, host, port);
 
+            ch.pipeline().addLast(ChannelPipelineCustomizer.HANDLER_SSL, configureSslHandler(sslContext.newHandler(ch.alloc(), host, port)));
+
+            insertPcapLoggingHandlerLazy(ch, "tls-unwrapped");
+
             ch.pipeline()
-                .addLast(ChannelPipelineCustomizer.HANDLER_SSL, configureSslHandler(sslContext.newHandler(ch.alloc(), host, port)))
                 .addLast(
                     ChannelPipelineCustomizer.HANDLER_HTTP2_PROTOCOL_NEGOTIATOR,
                     // if the server doesn't do ALPN, fall back to HTTP 1
@@ -822,7 +934,7 @@ public class ConnectionManager {
      * Initializer for H2C connections. Will proceed with
      * {@link #initHttp2(Pool, Channel, NettyClientCustomizer)} when the upgrade is done.
      */
-    private final class Http2UpgradeInitializer extends ChannelInitializer<Channel> {
+    private final class Http2UpgradeInitializer extends CustomizerAwareInitializer {
         private final Pool pool;
 
         Http2UpgradeInitializer(Pool pool) {
@@ -831,7 +943,9 @@ public class ConnectionManager {
 
         @Override
         protected void initChannel(@NonNull Channel ch) throws Exception {
-            NettyClientCustomizer connectionCustomizer = clientCustomizer.specializeForChannel(ch, NettyClientCustomizer.ChannelRole.CONNECTION);
+            NettyClientCustomizer connectionCustomizer = bootstrappedCustomizer.specializeForChannel(ch, NettyClientCustomizer.ChannelRole.CONNECTION);
+
+            insertPcapLoggingHandlerLazy(ch, "outer");
 
             Http2FrameCodec frameCodec = makeFrameCodec();
 
@@ -877,6 +991,8 @@ public class ConnectionManager {
         private final String host;
         private final int port;
 
+        private NettyClientCustomizer bootstrappedCustomizer;
+
         Http3ChannelInitializer(Pool pool, String host, int port) {
             this.pool = pool;
             this.host = host;
@@ -905,7 +1021,9 @@ public class ConnectionManager {
         }
 
         private void initChannel(Channel ch) {
-            NettyClientCustomizer channelCustomizer = clientCustomizer.specializeForChannel(ch, NettyClientCustomizer.ChannelRole.CONNECTION);
+            NettyClientCustomizer channelCustomizer = bootstrappedCustomizer.specializeForChannel(ch, NettyClientCustomizer.ChannelRole.CONNECTION);
+
+            insertPcapLoggingHandlerLazy(ch, "outer");
 
             ch.pipeline()
                 .addLast(Http3.newQuicClientCodecBuilder()
@@ -1049,15 +1167,19 @@ public class ConnectionManager {
             this.requestKey = requestKey;
         }
 
-        Mono<PoolHandle> acquire(@Nullable BlockHint blockHint) {
-            PoolSink<PoolHandle> sink = new CancellableMonoSink<>(blockHint);
+        ExecutionFlow<PoolHandle> acquire(@Nullable BlockHint blockHint) {
+            PendingRequest sink = new PendingRequest(blockHint);
             addPendingRequest(sink);
             Optional<Duration> acquireTimeout = configuration.getConnectionPoolConfiguration().getAcquireTimeout();
             //noinspection OptionalIsPresent
             if (acquireTimeout.isPresent()) {
-                return sink.asMono().timeout(acquireTimeout.get(), Schedulers.fromExecutor(group));
+                return sink.flow().timeout(acquireTimeout.get(), group, (v, e) -> {
+                    if (v != null) {
+                        v.release();
+                    }
+                });
             } else {
-                return sink.asMono();
+                return sink.flow();
             }
         }
 
@@ -1065,7 +1187,7 @@ public class ConnectionManager {
         void onNewConnectionFailure(@Nullable Throwable error) throws Exception {
             super.onNewConnectionFailure(error);
             // to avoid an infinite loop, fail one pending request.
-            Sinks.One<PoolHandle> pending = pollPendingRequest();
+            PendingRequest pending = pollPendingRequest();
             if (pending != null) {
                 HttpClientException wrapped;
                 if (error == null) {
@@ -1074,7 +1196,7 @@ public class ConnectionManager {
                 } else {
                     wrapped = new HttpClientException("Connect Error: " + error.getMessage(), error);
                 }
-                if (pending.tryEmitError(decorate(wrapped)) == Sinks.EmitResult.OK) {
+                if (pending.tryCompleteExceptionally(decorate(wrapped))) {
                     // no need to log
                     return;
                 }
@@ -1099,12 +1221,15 @@ public class ConnectionManager {
         }
 
         private ChannelFuture openConnectionFuture() {
-            ChannelInitializer<?> initializer;
+            CustomizerAwareInitializer initializer;
             if (requestKey.isSecure()) {
                 if (httpVersion.isHttp3()) {
-                    return udpBootstrap.clone()
-                        .handler(new Http3ChannelInitializer(this, requestKey.getHost(), requestKey.getPort()))
-                        .bind(0);
+                    Http3ChannelInitializer channelInitializer = new Http3ChannelInitializer(this, requestKey.getHost(), requestKey.getPort());
+                    Bootstrap localBootstrap = udpBootstrap.clone()
+                        .handler(channelInitializer)
+                        .localAddress(0);
+                    channelInitializer.bootstrappedCustomizer = clientCustomizer.specializeForBootstrap(localBootstrap);
+                    return localBootstrap.bind();
                 }
 
                 initializer = new AdaptiveAlpnChannelInitializer(
@@ -1115,9 +1240,10 @@ public class ConnectionManager {
                 );
             } else {
                 initializer = switch (httpVersion.getPlaintextMode()) {
-                    case HTTP_1 -> new ChannelInitializer<>() {
+                    case HTTP_1 -> new CustomizerAwareInitializer() {
                         @Override
                         protected void initChannel(@NonNull Channel ch) throws Exception {
+                            insertPcapLoggingHandlerLazy(ch, "outer");
                             configureProxy(ch.pipeline(), false, requestKey.getHost(), requestKey.getPort());
                             initHttp1(ch);
                             ch.pipeline().addLast(ChannelPipelineCustomizer.HANDLER_ACTIVITY_LISTENER, new ChannelInboundHandlerAdapter() {
@@ -1125,7 +1251,7 @@ public class ConnectionManager {
                                 public void channelActive(@NonNull ChannelHandlerContext ctx) throws Exception {
                                     super.channelActive(ctx);
                                     ctx.pipeline().remove(this);
-                                    NettyClientCustomizer channelCustomizer = clientCustomizer.specializeForChannel(ch, NettyClientCustomizer.ChannelRole.CONNECTION);
+                                    NettyClientCustomizer channelCustomizer = bootstrappedCustomizer.specializeForChannel(ch, NettyClientCustomizer.ChannelRole.CONNECTION);
                                     new Http1ConnectionHolder(ch, channelCustomizer).init(true);
                                 }
                             });
@@ -1244,9 +1370,8 @@ public class ConnectionManager {
              * @param sink The request for a pool handle
              * @param ph The pool handle
              */
-            final void emitPoolHandle(Sinks.One<PoolHandle> sink, PoolHandle ph) {
-                Sinks.EmitResult emitResult = sink.tryEmitValue(ph);
-                if (emitResult.isFailure()) {
+            final void emitPoolHandle(PendingRequest sink, PoolHandle ph) {
+                if (!sink.tryComplete(ph)) {
                     ph.release();
                 } else {
                     if (!configuration.getConnectionPoolConfiguration().isEnabled()) {
@@ -1257,14 +1382,14 @@ public class ConnectionManager {
             }
 
             @Override
-            public boolean dispatch(PoolSink<PoolHandle> sink) {
+            public final boolean dispatch(PendingRequest sink) {
                 if (!tryEarmarkForRequest()) {
                     return false;
                 }
 
-                BlockHint blockHint = sink.getBlockHint();
+                BlockHint blockHint = sink.blockHint;
                 if (blockHint != null && blockHint.blocks(channel.eventLoop())) {
-                    sink.tryEmitError(BlockHint.createException());
+                    sink.tryCompleteExceptionally(BlockHint.createException());
                     return true;
                 }
                 if (channel.eventLoop().inEventLoop()) {
@@ -1285,7 +1410,7 @@ public class ConnectionManager {
              *
              * @param sink The request for a pool handle
              */
-            abstract void dispatch0(PoolSink<PoolHandle> sink);
+            abstract void dispatch0(PendingRequest sink);
 
             /**
              * Try to add a new request to this connection. This is called outside the event loop,
@@ -1358,7 +1483,7 @@ public class ConnectionManager {
             }
 
             @Override
-            void dispatch0(PoolSink<PoolHandle> sink) {
+            void dispatch0(PendingRequest sink) {
                 if (!channel.isActive()) {
                     // make sure the request isn't dispatched to this connection again
                     windDownConnection();
@@ -1407,7 +1532,7 @@ public class ConnectionManager {
                 emitPoolHandle(sink, ph);
             }
 
-            private void returnPendingRequest(PoolSink<PoolHandle> sink) {
+            private void returnPendingRequest(PendingRequest sink) {
                 // failed, but the pending request may still work on another connection.
                 addPendingRequest(sink);
                 hasLiveRequest = false;
@@ -1490,7 +1615,7 @@ public class ConnectionManager {
             }
 
             @Override
-            void dispatch0(PoolSink<PoolHandle> sink) {
+            final void dispatch0(PendingRequest sink) {
                 if (!channel.isActive() || windDownConnection) {
                     // make sure the request isn't dispatched to this connection again
                     windDownConnection();
@@ -1570,7 +1695,7 @@ public class ConnectionManager {
                 }
             }
 
-            private void returnPendingRequest(PoolSink<PoolHandle> sink) {
+            private void returnPendingRequest(PendingRequest sink) {
                 // failed, but the pending request may still work on another connection.
                 addPendingRequest(sink);
                 earmarkedOrLiveRequests.decrementAndGet();

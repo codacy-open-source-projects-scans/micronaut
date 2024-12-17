@@ -122,7 +122,6 @@ public class HttpServerConfiguration implements ServerContextPathProvider {
     @SuppressWarnings("WeakerAccess")
     public static final boolean DEFAULT_HTTP_TO_HTTPS_REDIRECT = false;
 
-
     /**
      * The default value whether to dispatch OPTIONS Requests.
      */
@@ -432,7 +431,7 @@ public class HttpServerConfiguration implements ServerContextPathProvider {
      * Sets the maximum number of request bytes that will be buffered. Fully streamed requests can
      * still exceed this value. Default value ({@value #DEFAULT_MAX_REQUEST_BUFFER_SIZE} =&gt; // 10MB).
      * Currently limited to {@code 2^31}, if you need longer request bodies, stream them.<br>
-     * Note that there is always some internal buffering, so a very low value (< ~64K) will
+     * Note that there is always some internal buffering, so a very low value ({@code < ~64K}) will
      * essentially act like a request size limit.
      *
      * @param maxRequestBufferSize The maximum number of bytes from the request that may be buffered if the application requests buffering

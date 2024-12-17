@@ -19,38 +19,33 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.NonNull;
 import io.micronaut.core.annotation.Nullable;
 import io.micronaut.http.body.ByteBody;
+import io.micronaut.http.body.stream.BodySizeLimits;
+import io.micronaut.http.body.stream.BufferConsumer;
 import io.micronaut.http.netty.EventLoopFlow;
+import io.micronaut.http.netty.body.AvailableNettyByteBody;
+import io.micronaut.http.netty.body.ByteBufConsumer;
+import io.micronaut.http.netty.body.NettyBodyAdapter;
+import io.micronaut.http.netty.body.NettyByteBody;
+import io.micronaut.http.netty.body.StreamingNettyByteBody;
 import io.micronaut.http.netty.reactive.HotObservable;
-import io.micronaut.http.server.netty.body.AvailableNettyByteBody;
-import io.micronaut.http.server.netty.body.BodySizeLimits;
-import io.micronaut.http.server.netty.body.BufferConsumer;
-import io.micronaut.http.server.netty.body.NettyBodyAdapter;
-import io.micronaut.http.server.netty.body.NettyByteBody;
-import io.micronaut.http.server.netty.body.StreamingNettyByteBody;
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.EventLoop;
-import io.netty.handler.codec.http.DefaultFullHttpResponse;
-import io.netty.handler.codec.http.EmptyHttpHeaders;
-import io.netty.handler.codec.http.FullHttpResponse;
-import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http2.Http2Exception;
-import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import reactor.core.publisher.Flux;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.OptionalLong;
 
 /**
  * Common handler implementation for multiplexed HTTP versions (HTTP/2 and HTTP/3).
@@ -167,7 +162,7 @@ abstract class MultiplexedServerHandler {
 
                     requestAccepted = true;
                     notifyDataConsumed(fullBody.readableBytes());
-                    requestHandler.accept(ctx, request, PipeliningServerHandler.createImmediateByteBody(ctx.channel().eventLoop(), bodySizeLimits, fullBody), this);
+                    requestHandler.accept(ctx, request, AvailableNettyByteBody.createChecked(ctx.channel().eventLoop(), bodySizeLimits, fullBody), this);
                 } else {
                     if (bufferedContent == null) {
                         bufferedContent = new ArrayList<>();
@@ -241,31 +236,31 @@ abstract class MultiplexedServerHandler {
         }
 
         @Override
-        public final @NonNull ByteBufAllocator alloc() {
-            return ctx.alloc();
-        }
-
-        @Override
         public void write(@NonNull HttpResponse response, @NonNull ByteBody body) {
             if (responseDone) {
                 // early check
                 throw new IllegalStateException("Response already written");
             }
-            if (!ctx.executor().inEventLoop()) {
-                ctx.executor().execute(() -> write(response, body));
-                return;
+
+            // we do some preparation immediately on the calling thread, so that the ByteBody
+            // primary operation happens here.
+
+            response.headers().remove(HttpHeaderNames.TRANSFER_ENCODING);
+            if (PipeliningServerHandler.canHaveBody(response.status())) {
+                OptionalLong length = body.expectedLength();
+                if (length.isPresent()) {
+                    response.headers().set(HttpHeaderNames.CONTENT_LENGTH, length.getAsLong());
+                }
+            } else {
+                response.headers().remove(HttpHeaderNames.CONTENT_LENGTH);
             }
 
             NettyByteBody nbb = NettyBodyAdapter.adapt(body, ctx.channel().eventLoop());
             if (nbb instanceof AvailableNettyByteBody available) {
-                writeFull(new DefaultFullHttpResponse(response.protocolVersion(), response.status(), AvailableNettyByteBody.toByteBuf(available), response.headers(), EmptyHttpHeaders.INSTANCE));
+                writeFull(response, AvailableNettyByteBody.toByteBuf(available));
             } else {
-                prepareCompression(response, false);
-
-                writeHeaders(response, false, ctx.voidPromise());
-
                 StreamingNettyByteBody snbb = (StreamingNettyByteBody) nbb;
-                var consumer = new BufferConsumer() {
+                var consumer = new ByteBufConsumer() {
                     Upstream upstream;
                     final EventLoopFlow flow = new EventLoopFlow(ctx.channel().eventLoop());
 
@@ -321,26 +316,54 @@ abstract class MultiplexedServerHandler {
                         flush();
                     }
                 };
-                writerUpstream = consumer.upstream = snbb.primary(consumer);
-                consumer.upstream.start();
+                consumer.upstream = snbb.primary(consumer);
+                writeStreaming(response, consumer.upstream, snbb.expectedLength().orElse(-1));
             }
         }
 
+        private void writeStreaming(HttpResponse response, BufferConsumer.Upstream upstream, long contentLength) {
+            if (!ctx.executor().inEventLoop()) {
+                ctx.executor().execute(() -> writeStreaming(response, upstream, contentLength));
+                return;
+            }
+
+            if (responseDone) {
+                // connection closed?
+                writerUpstream.allowDiscard();
+                writerUpstream.disregardBackpressure();
+                return;
+            }
+
+            writerUpstream = upstream;
+
+            prepareCompression(response, contentLength);
+
+            writeHeaders(response, false, ctx.voidPromise());
+            upstream.start();
+        }
+
         @Override
-        public final void writeFull(@NonNull FullHttpResponse response, boolean headResponse) {
+        public void writeHeadResponse(@NonNull HttpResponse response) {
+            response.headers().remove(HttpHeaderNames.TRANSFER_ENCODING);
+            writeFull(response, Unpooled.EMPTY_BUFFER);
+        }
+
+        private void writeFull(@NonNull HttpResponse response, @NonNull ByteBuf content) {
             if (responseDone) {
                 // early check
                 throw new IllegalStateException("Response already written");
             }
             if (!ctx.executor().inEventLoop()) {
-                ctx.executor().execute(() -> writeFull(response, headResponse));
+                ByteBuf finalContent = content;
+                ctx.executor().execute(() -> writeFull(response, finalContent));
                 return;
             }
 
-            prepareCompression(response, true);
-
-            ByteBuf content = response.content();
             boolean empty = !content.isReadable();
+
+            if (!empty) {
+                prepareCompression(response, content.readableBytes());
+            }
 
             if (compressionSession != null) {
                 compressionSession.push(content);
@@ -354,16 +377,13 @@ abstract class MultiplexedServerHandler {
             if (!empty) {
                 // bypass writeDataCompressing
                 writeData0(content, true, ctx.voidPromise());
+            } else if (content != null) {
+                content.release();
             }
             if (!finish()) {
                 throw new IllegalStateException("Response already written");
             }
             flush();
-        }
-
-        @Override
-        public final void writeStreamed(@NonNull HttpResponse response, @NonNull Publisher<HttpContent> content) {
-            write(response, NettyBodyAdapter.adapt(Flux.from(content).map(HttpContent::content), ctx.channel().eventLoop()));
         }
 
         private void logStreamWriteFailure(Throwable cause) {
@@ -385,13 +405,11 @@ abstract class MultiplexedServerHandler {
         public final void closeAfterWrite() {
         }
 
-        private void prepareCompression(HttpResponse headers, boolean full) {
+        private void prepareCompression(HttpResponse headers, long contentLength) {
             if (compressor != null) {
-                Compressor.Session session = compressor.prepare(ctx, request, headers);
+                Compressor.Session session = compressor.prepare(ctx, request, headers, contentLength);
                 if (session != null) {
-                    if (!full) {
-                        headers.headers().remove(HttpHeaderNames.CONTENT_LENGTH);
-                    }
+                    headers.headers().remove(HttpHeaderNames.CONTENT_LENGTH);
                     compressionSession = session;
                 }
             }
@@ -445,7 +463,7 @@ abstract class MultiplexedServerHandler {
          * This is the {@link HotObservable} that represents the request body in the streaming
          * request case.
          */
-        private class InputStreamer implements BufferConsumer.Upstream, BufferConsumer {
+        private class InputStreamer implements BufferConsumer.Upstream, ByteBufConsumer {
             final StreamingNettyByteBody.SharedBuffer dest = new StreamingNettyByteBody.SharedBuffer(ctx.channel().eventLoop(), bodySizeLimits, this);
             /**
              * Number of bytes that have been received by {@link #add(ByteBuf)} but the downstream

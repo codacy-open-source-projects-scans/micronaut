@@ -56,7 +56,7 @@ import java.util.regex.Pattern;
  * @since 1.0
  */
 @TypeHint(value = MediaType[].class)
-public class MediaType implements CharSequence {
+public class MediaType implements CharSequence, Comparable<MediaType> {
 
     /**
      * Default file extension used for JSON.
@@ -82,6 +82,41 @@ public class MediaType implements CharSequence {
      * File extension for Microsoft Excel's workbook files in use between 97-2003.
      */
     public static final String EXTENSION_XLS = "xls";
+
+    /**
+     * File extension for OpenDocument spreadsheets.
+     */
+    public static final String EXTENSION_ODS = "ods";
+
+    /**
+     * File extension used for Microsoft Word Open XML document (DOCX).
+     */
+    public static final String EXTENSION_DOCX = "docx";
+
+    /**
+     * File extension for Microsoft Word document files in use between 97-2003.
+     */
+    public static final String EXTENSION_DOC = "doc";
+
+    /**
+     * File extension for OpenDocument text files.
+     */
+    public static final String EXTENSION_ODT = "odt";
+
+    /**
+     * File extension used for Microsoft Powerpoint Open XML document (PPTX).
+     */
+    public static final String EXTENSION_PPTX = "pptx";
+
+    /**
+     * File extension for Microsoft Powerpoint files in use between 97-2003.
+     */
+    public static final String EXTENSION_PPT = "ppt";
+
+    /**
+     * File extension for OpenDocument presentation files.
+     */
+    public static final String EXTENSION_ODP = "odp";
 
     /**
      * File extension for GPS Exchange Format files.
@@ -259,6 +294,76 @@ public class MediaType implements CharSequence {
      * Microsoft Excel's workbook files in use between 97-2003.
      */
     public static final MediaType MICROSOFT_EXCEL_TYPE = new MediaType(MICROSOFT_EXCEL, EXTENSION_XLS);
+
+    /**
+     * OpenDocument spreadsheet: application/vnd.oasis.opendocument.spreadsheet.
+     */
+    public static final String OPEN_DOCUMENT_SPREADSHEET = "application/vnd.oasis.opendocument.spreadsheet";
+
+    /**
+     * OpenDocument spreadsheet: application/vnd.oasis.opendocument.spreadsheet.
+     */
+    public static final MediaType OPEN_DOCUMENT_SPREADSHEET_TYPE = new MediaType(OPEN_DOCUMENT_SPREADSHEET, EXTENSION_ODS);
+
+    /**
+     * XML: Microsoft Word Open XML (DOCX).
+     */
+    public static final String MICROSOFT_WORD_OPEN_XML = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+    /**
+     * XML: Microsoft Word Open XML (DOCX).
+     */
+    public static final MediaType MICROSOFT_WORD_OPEN_XML_TYPE = new MediaType(MICROSOFT_WORD_OPEN_XML, EXTENSION_DOCX);
+
+    /**
+     * Microsoft Word files in use between 97-2003.
+     */
+    public static final String MICROSOFT_WORD = "application/msword";
+
+    /**
+     * Microsoft Word files in use between 97-2003.
+     */
+    public static final MediaType MICROSOFT_WORD_TYPE = new MediaType(MICROSOFT_WORD, EXTENSION_DOC);
+
+    /**
+     * OpenDocument text: application/vnd.oasis.opendocument.text.
+     */
+    public static final String OPEN_DOCUMENT_TEXT = "application/vnd.oasis.opendocument.text";
+
+    /**
+     * OpenDocument text: application/vnd.oasis.opendocument.text.
+     */
+    public static final MediaType OPEN_DOCUMENT_TEXT_TYPE = new MediaType(OPEN_DOCUMENT_TEXT, EXTENSION_ODT);
+
+    /**
+     * XML: Microsoft Powerpoint XML (PPTX).
+     */
+    public static final String MICROSOFT_POWERPOINT_OPEN_XML = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+
+    /**
+     * XML: Microsoft Powerpoint Open XML (PPTX).
+     */
+    public static final MediaType MICROSOFT_POWERPOINT_OPEN_XML_TYPE = new MediaType(MICROSOFT_WORD_OPEN_XML, EXTENSION_PPTX);
+
+    /**
+     * Microsoft Powerpoint files in use between 97-2003.
+     */
+    public static final String MICROSOFT_POWERPOINT = "application/vnd.ms-powerpoint";
+
+    /**
+     * Microsoft Powerpoint files in use between 97-2003.
+     */
+    public static final MediaType MICROSOFT_POWERPOINT_TYPE = new MediaType(MICROSOFT_POWERPOINT, EXTENSION_PPT);
+
+    /**
+     * OpenDocument presentation: application/vnd.oasis.opendocument.presentation.
+     */
+    public static final String OPEN_DOCUMENT_PRESENTATION = "application/vnd.oasis.opendocument.presentation";
+
+    /**
+     * OpenDocument presentation: application/vnd.oasis.opendocument.presentation.
+     */
+    public static final MediaType OPEN_DOCUMENT_PRESENTATION_TYPE = new MediaType(OPEN_DOCUMENT_PRESENTATION, EXTENSION_ODP);
 
     /**
      * HAL JSON: application/hal+json.
@@ -839,6 +944,13 @@ public class MediaType implements CharSequence {
             case APPLICATION_ZIP -> ZIP_TYPE;
             case MICROSOFT_EXCEL_OPEN_XML -> MICROSOFT_EXCEL_OPEN_XML_TYPE;
             case MICROSOFT_EXCEL -> MICROSOFT_EXCEL_TYPE;
+            case OPEN_DOCUMENT_SPREADSHEET -> OPEN_DOCUMENT_SPREADSHEET_TYPE;
+            case MICROSOFT_WORD_OPEN_XML -> MICROSOFT_WORD_OPEN_XML_TYPE;
+            case MICROSOFT_WORD -> MICROSOFT_WORD_TYPE;
+            case OPEN_DOCUMENT_TEXT -> OPEN_DOCUMENT_TEXT_TYPE;
+            case MICROSOFT_POWERPOINT -> MICROSOFT_POWERPOINT_TYPE;
+            case MICROSOFT_POWERPOINT_OPEN_XML -> MICROSOFT_POWERPOINT_OPEN_XML_TYPE;
+            case OPEN_DOCUMENT_PRESENTATION -> OPEN_DOCUMENT_PRESENTATION_TYPE;
             case APPLICATION_YANG -> YANG_TYPE;
             case APPLICATION_CUE -> CUE_TYPE;
             case APPLICATION_TOML -> TOML_TYPE;
@@ -914,10 +1026,20 @@ public class MediaType implements CharSequence {
      * Check if the extension matches.
      * @param matchExtension The extension to match
      * @return true if matches
+     * @since 4.7.0
+     */
+    public boolean matchesAllOrWildcardOrExtension(String matchExtension) {
+        return extension.equalsIgnoreCase(ALL_TYPE.extension) || extension.equals(WILDCARD) || matchesExtension(matchExtension);
+    }
+
+    /**
+     * Check if the extension matches.
+     * @param matchExtension The extension to match
+     * @return true if matches
      * @since 4.6.3
      */
     public boolean matchesExtension(String matchExtension) {
-        return extension.equalsIgnoreCase(ALL_TYPE.extension) || extension.equals(WILDCARD) || extension.equalsIgnoreCase(matchExtension);
+        return extension.equalsIgnoreCase(matchExtension);
     }
 
     /**
@@ -949,10 +1071,22 @@ public class MediaType implements CharSequence {
     }
 
     /**
-     * @return The parameters to the media type
+     * @return The parameters of the media type
      */
     public OptionalValues<String> getParameters() {
         return OptionalValues.of(String.class, parameters);
+    }
+
+    /**
+     * @return The parameters map of the media type
+     * @since 4.8
+     */
+    @NonNull
+    public Map<CharSequence, String> getParametersMap() {
+        if (parameters == null) {
+            return Collections.emptyMap();
+        }
+        return Collections.unmodifiableMap(parameters);
     }
 
     /**
@@ -980,7 +1114,11 @@ public class MediaType implements CharSequence {
      * @return The charset of the media type if specified
      */
     public Optional<Charset> getCharset() {
-        return getParameters().get(CHARSET_PARAMETER).map(Charset::forName);
+        String charset = parameters.get(CHARSET_PARAMETER);
+        if (charset == null) {
+            return Optional.empty();
+        }
+        return Optional.of(Charset.forName(charset));
     }
 
     @Override
@@ -1135,24 +1273,7 @@ public class MediaType implements CharSequence {
                 }
             }
         }
-        mediaTypes.sort((o1, o2) -> {
-            //The */* type is always last
-            boolean fullWildcard1 = o1.type.equals(WILDCARD);
-            boolean fullWildcard2 = o2.type.equals(WILDCARD);
-            if (fullWildcard1 && fullWildcard2) {
-                return 0;
-            } else if (fullWildcard1) {
-                return 1;
-            } else if (fullWildcard2) {
-                return -1;
-            }
-            if (o2.subtype.equals(WILDCARD) && !o1.subtype.equals(WILDCARD)) {
-                return -1;
-            } else if (o1.subtype.equals(WILDCARD) && !o2.subtype.equals(WILDCARD)) {
-                return 1;
-            }
-            return o2.getQualityAsNumber().compareTo(o1.getQualityAsNumber());
-        });
+        mediaTypes.sort(null);
         return Collections.unmodifiableList(mediaTypes);
     }
 
@@ -1275,5 +1396,26 @@ public class MediaType implements CharSequence {
         }
 
         return Collections.emptyMap();
+    }
+
+    @Override
+    public int compareTo(@NonNull MediaType o2) {
+        //The */* type is always last
+        MediaType o1 = this;
+        boolean fullWildcard1 = o1.type.equals(WILDCARD);
+        boolean fullWildcard2 = o2.type.equals(WILDCARD);
+        if (fullWildcard1 && fullWildcard2) {
+            return 0;
+        } else if (fullWildcard1) {
+            return 1;
+        } else if (fullWildcard2) {
+            return -1;
+        }
+        if (o2.subtype.equals(WILDCARD) && !o1.subtype.equals(WILDCARD)) {
+            return -1;
+        } else if (o1.subtype.equals(WILDCARD) && !o2.subtype.equals(WILDCARD)) {
+            return 1;
+        }
+        return o2.getQualityAsNumber().compareTo(o1.getQualityAsNumber());
     }
 }

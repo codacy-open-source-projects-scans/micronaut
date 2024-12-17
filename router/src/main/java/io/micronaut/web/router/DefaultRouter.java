@@ -270,8 +270,10 @@ public class DefaultRouter implements Router, HttpServerFilterResolver<RouteMatc
                 uriRoutes.add(match);
             }
         }
-        if (routes.size() == 1) {
-            return uriRoutes.get(0);
+        if (uriRoutes.size() == 1) {
+            Object obj = uriRoutes.get(0);
+            // type pollution avoidance (should be covered by type pollution test)
+            return obj instanceof DefaultUriRouteMatch<?, ?> def ? (DefaultUriRouteMatch<T, R>) def : (UriRouteMatch<T, R>) obj;
         }
         uriRoutes = resolveAmbiguity(request, uriRoutes);
         if (uriRoutes.size() > 1) {
@@ -290,11 +292,10 @@ public class DefaultRouter implements Router, HttpServerFilterResolver<RouteMatc
             return Collections.emptyList();
         }
         List<UriRouteMatch<T, R>> uriRoutes = toMatches(request.getPath(), routes);
-        if (routes.size() == 1) {
+        if (uriRoutes.size() == 1) {
             return uriRoutes;
         }
-        uriRoutes = resolveAmbiguity(request, uriRoutes);
-        return uriRoutes;
+        return resolveAmbiguity(request, uriRoutes);
     }
 
     private <T, R> List<UriRouteMatch<T, R>> resolveAmbiguity(HttpRequest<?> request,
