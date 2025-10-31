@@ -1,0 +1,85 @@
+The loggers endpoint returns information about the available loggers in the application and permits configuring their log level.
+
+NOTE: The loggers endpoint is disabled by default and must be explicitly enabled with the setting `endpoints.loggers.enabled=true`.
+
+To get a collection of all loggers by name with their configured and effective log levels, send a GET request to /loggers. This also provides a list of the available log levels.
+
+[source,bash]
+----
+$ curl http://localhost:8080/loggers
+
+{
+    "levels": [
+        "ALL", "TRACE", "DEBUG", "INFO", "WARN", "ERROR", "OFF", "NOT_SPECIFIED"
+    ],
+    "loggers": {
+        "ROOT": {
+            "configuredLevel": "INFO",
+            "effectiveLevel": "INFO"
+        },
+        "io": {
+            "configuredLevel": "NOT_SPECIFIED",
+            "effectiveLevel": "INFO"
+        },
+        "io.micronaut": {
+            "configuredLevel": "NOT_SPECIFIED",
+            "effectiveLevel": "INFO"
+        },
+        // etc...
+    }
+}
+----
+
+To get the log levels of a particular logger, include the logger name in your GET request. For example, to access the log levels of the logger 'io.micronaut.http':
+
+[source,bash]
+----
+$ curl http://localhost:8080/loggers/io.micronaut.http
+
+{
+    "configuredLevel": "NOT_SPECIFIED",
+    "effectiveLevel": "INFO"
+}
+----
+
+If the named logger does not exist, it is created with an unspecified (i.e. `NOT_SPECIFIED`) configured log level (its effective log level is usually that of the root logger).
+
+To update the log level of a single logger, send a POST request to the named logger URL and include a body providing the log level to configure.
+
+[source,bash]
+----
+$ curl -i -X POST \
+       -H "Content-Type: application/json" \
+       -d '{ "configuredLevel": "ERROR" }' \
+       http://localhost:8080/loggers/ROOT
+
+HTTP/1.1 200 OK
+
+$ curl http://localhost:8080/loggers/ROOT
+
+{
+    "configuredLevel": "ERROR",
+    "effectiveLevel": "ERROR"
+}
+----
+
+== Configuration
+
+To configure the loggers endpoint, supply configuration through `endpoints.loggers`.
+
+.Loggers Endpoint Configuration Example
+[configuration]
+----
+endpoints:
+  loggers:
+    enabled: Boolean
+    sensitive: Boolean
+----
+
+NOTE: By default, the endpoint doesn't allow changing the log level by unauthorized users (even if `sensitive` is set to `false`). To allow this you must set `endpoints.loggers.write-sensitive` to `false`.
+
+== Customization
+
+The loggers endpoint is composed of two customizable parts: a api:management.endpoint.loggers.LoggersManager[] and a api:logging.LoggingSystem[]. See the <<logging, logging section of the documentation>> for information on customizing the logging system.
+
+The api:management.endpoint.loggers.LoggersManager[] is responsible for retrieving and setting log levels. If the default implementation is not sufficient for your use case, simply provide your own implementation and replace the api:management.endpoint.loggers.impl.DefaultLoggersManager[default implementation] with the ann:context.annotation.Replaces[] annotation.

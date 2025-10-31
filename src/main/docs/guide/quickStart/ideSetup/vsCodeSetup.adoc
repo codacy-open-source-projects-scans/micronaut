@@ -1,0 +1,27 @@
+The Micronaut framework can easily be set up within Visual Studio Code by installing the following two extensions:
+
+* https://marketplace.visualstudio.com/items?itemName=vscjava.vscode-java-pack[The Microsoft Extension Pack for Java]
+* https://marketplace.visualstudio.com/items?itemName=oracle-labs-graalvm.micronaut-tools[Tools for Micronaut® framework]
+
+These extensions can be installed by clicking on the *Install* button in the banner of the pages linked above, or, by searching for the extensions within VS Code.
+
+image::installing-tools-for-micronaut-vs-code.gif[Installing Micronaut tools, 1024, 1024]
+
+Once they are installed they will give you access to a host of Micronaut specific features such as:
+
+* https://marketplace.visualstudio.com/items?itemName=oracle-labs-graalvm.micronaut#create-a-new-micronaut-project[An application creation wizard]
+* https://marketplace.visualstudio.com/items?itemName=oracle-labs-graalvm.micronaut-tools#view-defined-beans-and-endpoints[Viewing beans and REST endpoints]
+* https://marketplace.visualstudio.com/items?itemName=oracle-labs-graalvm.micronaut-tools#compose-rest-queries[Composing REST queries and running them]
+* https://marketplace.visualstudio.com/items?itemName=oracle-labs-graalvm.micronaut-tools#editor-support-for-micronaut-expression-language[Support for the Micronaut Expression Language]
+* https://marketplace.visualstudio.com/items?itemName=oracle-labs-graalvm.micronaut-tools#monitor-and-manage-your-micronaut-application[A Micronaut Tools Activity view for running and monitoring your applications]
+* https://marketplace.visualstudio.com/items?itemName=oracle-labs-graalvm.micronaut-tools#observe-your-micronaut-application-using-the-micronaut-control-panel[Support for using the Micronaut Control Panel]
+* https://marketplace.visualstudio.com/items?itemName=oracle-labs-graalvm.micronaut-tools#debug-your-micronaut-application[Debugging your application]
+* https://marketplace.visualstudio.com/items?itemName=oracle-labs-graalvm.micronaut-tools#package-your-micronaut-application[Support for packaging your application as a container]
+* https://marketplace.visualstudio.com/items?itemName=oracle-labs-graalvm.micronaut-tools#connect-to-an-oracle-autonomous-database[Support for connecting to and working with an Oracle Database]
+* https://marketplace.visualstudio.com/items?itemName=oracle-labs-graalvm.micronaut-tools#deploy-your-micronaut-application-to-oracle-cloud-infrastructure[Advanced support for deploying your applications to Oracle Cloud Infrastructure]
+* https://marketplace.visualstudio.com/items?itemName=oracle-labs-graalvm.micronaut-tools#create-entity-classes-and-repository-interfaces-from-an-existing-database-schema[Advanced support for creating Micronaut Data entities, repositories and controllers from existing database schemas]
+* https://marketplace.visualstudio.com/items?itemName=oracle-labs-graalvm.micronaut-tools#create-tests-for-micronaut-controller-endpoints[Test creation for Micronaut Data controllers endpoints]
+
+Once the extensions are installed just type `code .` in any Micronaut project directory and the project will be opened within VS Code.
+
+NOTE: For macOS, you need to install the `code` command https://code.visualstudio.com/docs/setup/mac[by following these instructions].

@@ -1,0 +1,61 @@
+Using the Micronaut CLI you can create a new Micronaut application in either Groovy, Java, or Kotlin (the default is Java).
+
+The following command creates a new "Hello World" server application in Java with a Gradle build:
+
+NOTE: Applications generated via our CLI include Gradle or Maven wrappers, so it is not even necessary to have Gradle or Maven installed on your machine to begin running the applications. Simply use the `mvnw` or `gradlew` command, as explained further below.
+
+[source,bash]
+----
+$ mn create-app hello-world
+----
+
+TIP: Supply `--build maven` to create a Maven-based build instead
+
+If you don't have the CLI installed then you can also create the same application by visiting https://launch.micronaut.io[Micronaut Launch] and clicking the "Generate Project" button or by using the following `curl` command on Unix systems:
+
+[source,bash]
+----
+curl https://launch.micronaut.io/hello-world.zip -o hello-world.zip
+unzip hello-world.zip
+cd hello-world
+----
+
+TIP: Add `?build=maven` to the URL passed to `curl` to generate a Maven project.
+
+The previous steps created a new Java application in a directory called `hello-world` featuring a Gradle build. You can run the application with `./gradlew run`:
+
+[source,bash]
+----
+$ ./gradlew run
+> Task :run
+[main] INFO  io.micronaut.runtime.Micronaut - Startup completed in 540ms. Server Running: http://localhost:28933
+----
+
+If you have created a Maven-based project, use `./mvnw mn:run` instead.
+
+NOTE: For Windows the ./ before commands is not needed
+
+By default, the Micronaut HTTP server is configured to run on port 8080. See the section <<runningSpecificPort, Running Server on a Specific Port>> for more options.
+
+To create a service that responds to "Hello World" you first need a controller. The following is an example:
+
+snippet::io.micronaut.docs.server.intro.HelloController[tags="imports,class"]
+
+<1> The link:{api}/io/micronaut/http/annotation/Controller.html[@Controller] annotation defines the class as a controller mapped to the path `/hello`
+<2> The link:{api}/io/micronaut/http/annotation/Get.html[@Get] annotation maps the `index` method to all requests that use an HTTP `GET`
+<3> A String "Hello World" is returned as the response
+
+[%hardbreaks]
+If you use Java, place the previous file in `src/main/java/hello/world`.
+If you use Groovy, place the previous file in `src/main/groovy/hello/world`.
+If you use Kotlin, place the previous file in `src/main/kotlin/hello/world`.
+
+If you start the application and send a `GET` request to the `/hello` URI, the text "Hello World" is returned:
+
+[source,bash]
+----
+$ curl http://localhost:8080/hello
+Hello World
+----
+
+TIP: See the guide for https://guides.micronaut.io/latest/creating-your-first-micronaut-app.html[Creating your First Micronaut Application] to learn more.
