@@ -54,6 +54,12 @@ public record BlockHint(Thread blockedThread, @Nullable BlockHint next) {
         }
     }
 
+    void checkIsNotBlocked(EventLoop eventLoop) {
+        if (blocks(eventLoop)) {
+            throw createException();
+        }
+    }
+
     @NonNull
     static HttpClientException createException() {
         return new HttpClientException(

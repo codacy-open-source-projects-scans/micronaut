@@ -55,8 +55,6 @@ public final class DefaultUrlRouteInfo<T, R> extends DefaultRequestMatcher<T, R>
     private final Integer port;
     private final ConversionService conversionService;
     private final ExecutorSelector executorSelector;
-    @Nullable
-    private ExecutorService executorService;
     private boolean noExecutor;
 
     @SuppressWarnings("ParameterNumber")
@@ -127,15 +125,15 @@ public final class DefaultUrlRouteInfo<T, R> extends DefaultRequestMatcher<T, R>
 
     @Override
     public ExecutorService getExecutor(ThreadSelection threadSelection) {
-        if (executorService != null || noExecutor) {
-            return executorService;
-        }
-        ExecutorService es = executorSelector.select(getTargetMethod(), threadSelection).orElse(null);
-        if (es == null) {
-            noExecutor = true;
+        if (executorSelector == null || noExecutor) {
             return null;
+        } else {
+            ExecutorService executor = executorSelector.select(getTargetMethod(), threadSelection)
+                .orElse(null);
+            if (executor == null) {
+                noExecutor = true;
+            }
+            return executor;
         }
-        executorService = es;
-        return executorService;
     }
 }

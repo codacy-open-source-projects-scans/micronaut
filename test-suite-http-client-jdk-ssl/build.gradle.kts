@@ -5,11 +5,11 @@ plugins {
 description = "Test suite for the Java.net HTTP client with SSL where hostname resolution is disabled"
 
 dependencies {
-    testImplementation(projects.micronautHttpServerNetty)
-    testImplementation(projects.micronautHttpClientJdk)
+    testImplementation(projects.httpServerNetty)
+    testImplementation(projects.httpClientJdk)
     testImplementation(libs.spock)
     testImplementation(libs.managed.reactor)
-    testImplementation(projects.micronautJacksonDatabind)
+    testImplementation(projects.jacksonDatabind)
 }
 
 tasks.named<Test>("test") {

@@ -2,13 +2,13 @@ plugins {
     id("io.micronaut.build.internal.convention-library")
 }
 dependencies {
-    annotationProcessor(projects.micronautInjectJava)
+    annotationProcessor(project(":inject-java"))
     api(libs.junit.jupiter)
-    api(projects.micronautHttpTck)
+    api(projects.httpTck)
     implementation(libs.managed.reactor)
-    implementation(projects.micronautContext)
-    implementation(projects.micronautHttpServerNetty)
-    implementation(projects.micronautHttpClientCore)
+    implementation(project(":context"))
+    implementation(project(":http-server-netty"))
+    implementation(project(":http-client-core"))
 }
 tasks.named<Test>("test") {
     useJUnitPlatform()

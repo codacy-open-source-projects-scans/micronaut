@@ -43,7 +43,6 @@ import io.micronaut.core.naming.conventions.StringConvention;
 import io.micronaut.core.type.Argument;
 import io.micronaut.core.util.ArgumentUtils;
 import io.micronaut.core.util.StringUtils;
-import io.micronaut.core.value.PropertyCatalog;
 import io.micronaut.inject.BeanConfiguration;
 import io.micronaut.inject.BeanDefinition;
 import io.micronaut.inject.BeanDefinitionReference;
@@ -252,12 +251,6 @@ public class DefaultApplicationContext extends DefaultBeanContext implements Con
     @Override
     public Collection<String> getPropertyEntries(@NonNull String name) {
         return getEnvironment().getPropertyEntries(name);
-    }
-
-    @NonNull
-    @Override
-    public Collection<String> getPropertyEntries(@NonNull String name, @NonNull PropertyCatalog propertyCatalog) {
-        return getEnvironment().getPropertyEntries(name, propertyCatalog);
     }
 
     @NonNull

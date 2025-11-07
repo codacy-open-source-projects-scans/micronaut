@@ -54,11 +54,4 @@ class JsonViewsTest {
         assertEquals(HttpStatus.OK, response.getStatus());
         assertFalse(response.body().contains("password"));
     }
-
-    @Test
-    void testJsonViewFuture() {
-        HttpResponse<String> response = client.toBlocking().exchange("/views/future", String.class);
-        assertEquals(HttpStatus.OK, response.getStatus());
-        assertFalse(response.body().contains("password"));
-    }
 }

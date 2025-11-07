@@ -22,7 +22,6 @@ import io.micronaut.core.io.buffer.ByteBuffer;
 import io.micronaut.core.io.buffer.ByteBufferFactory;
 import io.micronaut.core.util.ArgumentUtils;
 import io.micronaut.http.body.CloseableAvailableByteBody;
-import io.micronaut.http.body.CloseableByteBody;
 import io.micronaut.http.body.InternalByteBody;
 
 import java.io.ByteArrayInputStream;
@@ -56,7 +55,7 @@ public final class AvailableByteArrayBody implements CloseableAvailableByteBody,
     @Override
     public @NonNull CloseableAvailableByteBody split() {
         if (array == null) {
-            BaseSharedBuffer.failClaim();
+            InputStreamByteBody.failClaim();
         }
         return new AvailableByteArrayBody(bufferFactory, array);
     }
@@ -69,7 +68,7 @@ public final class AvailableByteArrayBody implements CloseableAvailableByteBody,
     @Override
     public long length() {
         if (array == null) {
-            BaseSharedBuffer.failClaim();
+            InputStreamByteBody.failClaim();
         }
         return array.length;
     }
@@ -78,21 +77,15 @@ public final class AvailableByteArrayBody implements CloseableAvailableByteBody,
     public byte @NonNull [] toByteArray() {
         byte[] a = array;
         if (a == null) {
-            BaseSharedBuffer.failClaim();
+            InputStreamByteBody.failClaim();
         }
         array = null;
-        BaseSharedBuffer.logClaim();
         return a;
     }
 
     @Override
     public @NonNull ByteBuffer<?> toByteBuffer() {
         return bufferFactory.wrap(toByteArray());
-    }
-
-    @Override
-    public @NonNull CloseableByteBody move() {
-        return new AvailableByteArrayBody(bufferFactory, toByteArray());
     }
 
     @Override

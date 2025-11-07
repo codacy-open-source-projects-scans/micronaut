@@ -15,6 +15,7 @@
  */
 package io.micronaut.http.server.exceptions.response;
 
+import io.micronaut.context.annotation.Secondary;
 import io.micronaut.core.annotation.NonNull;
 import io.micronaut.http.HttpMethod;
 import io.micronaut.http.MediaType;
@@ -23,6 +24,8 @@ import io.micronaut.http.hateoas.JsonError;
 import io.micronaut.http.hateoas.Link;
 import io.micronaut.http.hateoas.Resource;
 import io.micronaut.json.JsonConfiguration;
+import jakarta.inject.Singleton;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -31,9 +34,9 @@ import java.util.List;
  *
  * @author James Kleeh
  * @since 2.4.0
- * @deprecated use {@link io.micronaut.http.server.exceptions.response.DefaultErrorResponseProcessor} instead
  */
-@Deprecated(forRemoval = true)
+@Singleton
+@Secondary
 public class HateoasErrorResponseProcessor implements ErrorResponseProcessor<JsonError> {
 
     private final boolean alwaysSerializeErrorsAsList;
@@ -57,7 +60,7 @@ public class HateoasErrorResponseProcessor implements ErrorResponseProcessor<Jso
             jsonError.getPath().ifPresent(error::path);
         } else {
             error = new JsonError(response.reason());
-            List<Resource> errors = new ArrayList<>(errorContext.getErrors().size());
+            List<Resource> errors = new ArrayList<>();
             for (Error jsonError : errorContext.getErrors()) {
                 errors.add(new JsonError(jsonError.getMessage()).path(jsonError.getPath().orElse(null)));
             }

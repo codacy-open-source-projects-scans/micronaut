@@ -186,13 +186,13 @@ public class HttpClientIntroductionAdvice implements MethodInterceptor<Object, O
                 return switch (interceptedMethod.resultType()) {
                     case PUBLISHER ->
                             handlePublisher(context, returnType, reactiveValueType, httpMethod, httpMethodName,
-                                uri, interceptedMethod, annotationMetadata, httpClient, errorType, valueType, declaringType);
+                                uri, interceptedMethod, annotationMetadata, httpClient, errorType, valueType);
                     case COMPLETION_STAGE ->
                             handleCompletionStage(context, httpMethod, httpMethodName, uri, interceptedMethod,
                                 annotationMetadata, httpClient, returnType, errorType, valueType, reactiveValueType, declaringType);
                     case SYNCHRONOUS ->
                             handleSynchronous(context, returnType, httpClient, httpMethod, httpMethodName, uri,
-                                interceptedMethod, annotationMetadata, errorType, declaringType);
+                                interceptedMethod, annotationMetadata, errorType);
                 };
             } catch (Exception e) {
                 return interceptedMethod.handleException(e);
@@ -211,13 +211,11 @@ public class HttpClientIntroductionAdvice implements MethodInterceptor<Object, O
                                      String uriToBind,
                                      InterceptedMethod interceptedMethod,
                                      AnnotationMetadata annotationMetadata,
-                                     Argument<?> errorType,
-                                     Class<?> declaringType) {
+                                     Argument<?> errorType) {
 
         Class<?> javaReturnType = returnType.getType();
         BlockingHttpClient blockingHttpClient = httpClient.toBlocking();
         RequestBinderResult binderResult = bindRequest(context, httpMethod, httpMethodName, uriToBind, interceptedMethod, annotationMetadata);
-        String clientName = declaringType.getName();
 
         if (binderResult.isError()) {
             return binderResult.errorResult;
@@ -230,17 +228,17 @@ public class HttpClientIntroductionAdvice implements MethodInterceptor<Object, O
         }
 
         if (HttpResponse.class.isAssignableFrom(javaReturnType)) {
-            return handleBlockingCall(
-                clientName, javaReturnType, () ->
-                    blockingHttpClient.exchange(request,
+            return handleBlockingCall(javaReturnType, () ->
+                blockingHttpClient.exchange(request,
                     returnType.asArgument().getFirstTypeVariable().orElse(Argument.OBJECT_ARGUMENT),
                     errorType
                 ));
         } else if (void.class == javaReturnType) {
-            return handleBlockingCall(clientName, javaReturnType, () -> blockingHttpClient.exchange(request, null, errorType));
+            return handleBlockingCall(javaReturnType, () ->
+                blockingHttpClient.exchange(request, null, errorType));
         } else {
-            return handleBlockingCall(clientName, javaReturnType,
-                () -> blockingHttpClient.retrieve(request, returnType.asArgument(), errorType));
+            return handleBlockingCall(javaReturnType, () ->
+                blockingHttpClient.retrieve(request, returnType.asArgument(), errorType));
         }
     }
 
@@ -283,12 +281,8 @@ public class HttpClientIntroductionAdvice implements MethodInterceptor<Object, O
 
             @Override
             protected void doOnError(Throwable t) {
-                if (LOG.isDebugEnabled()) {
-                    LOG.debug("Client [{}] received HTTP error response: {}", declaringType.getName(), t.getMessage(), t);
-                }
-
                 if (t instanceof HttpClientResponseException e) {
-                    if (e.code() == HttpStatus.NOT_FOUND.getCode()) {
+                    if (e.getStatus() == HttpStatus.NOT_FOUND) {
                         if (reactiveValueType == Optional.class) {
                             future.complete(Optional.empty());
                         } else if (HttpResponse.class.isAssignableFrom(reactiveValueType)) {
@@ -299,7 +293,9 @@ public class HttpClientIntroductionAdvice implements MethodInterceptor<Object, O
                         return;
                     }
                 }
-
+                if (LOG.isDebugEnabled()) {
+                    LOG.debug("Client [{}] received HTTP error response: {}", declaringType.getName(), t.getMessage(), t);
+                }
                 future.completeExceptionally(t);
             }
 
@@ -322,8 +318,7 @@ public class HttpClientIntroductionAdvice implements MethodInterceptor<Object, O
                                    AnnotationMetadata annotationMetadata,
                                    HttpClient httpClient,
                                    Argument<?> errorType,
-                                   Argument<?> valueType,
-                                   Class<?> declaringType) {
+                                   Argument<?> valueType) {
         boolean isSingle = returnType.isSingleResult() ||
                 returnType.isCompletable() ||
                 HttpResponse.class.isAssignableFrom(reactiveValueType) ||
@@ -337,13 +332,6 @@ public class HttpClientIntroductionAdvice implements MethodInterceptor<Object, O
         } else {
             publisher = httpClientResponsePublisher(httpClient, requestPublisher, returnType, errorType, valueType);
         }
-
-        if (LOG.isDebugEnabled()) {
-            publisher = Flux.from(publisher).doOnError(t ->
-                LOG.debug("Client [{}] received HTTP error response: {}", declaringType.getName(), t.getMessage(), t)
-            );
-        }
-
         Object finalPublisher = interceptedMethod.handleResult(publisher);
         for (ReactiveClientResultTransformer transformer : transformers) {
             finalPublisher = transformer.transform(finalPublisher);
@@ -413,10 +401,8 @@ public class HttpClientIntroductionAdvice implements MethodInterceptor<Object, O
 
         final MediaType[] acceptTypes;
         Collection<MediaType> accept = request.accept();
-        var definitionType = annotationMetadata.enumValue(Client.class, "definitionType", Client.DefinitionType.class)
-            .orElse(Client.DefinitionType.CLIENT);
         if (accept.isEmpty()) {
-            String[] consumesMediaType = context.stringValues(definitionType.isClient() ? Consumes.class : Produces.class);
+            String[] consumesMediaType = context.stringValues(Consumes.class);
             if (ArrayUtils.isEmpty(consumesMediaType)) {
                 acceptTypes = DEFAULT_ACCEPT_TYPES;
             } else {
@@ -425,8 +411,8 @@ public class HttpClientIntroductionAdvice implements MethodInterceptor<Object, O
             request.accept(acceptTypes);
         }
 
-        if (body != null && request.getContentType().isEmpty()) {
-            MediaType[] contentTypes = MediaType.of(context.stringValues(definitionType.isClient() ? Produces.class : Consumes.class));
+        if (body != null && !request.getContentType().isPresent()) {
+            MediaType[] contentTypes = MediaType.of(context.stringValues(Produces.class));
             if (ArrayUtils.isEmpty(contentTypes)) {
                 contentTypes = DEFAULT_ACCEPT_TYPES;
             }
@@ -624,7 +610,7 @@ public class HttpClientIntroductionAdvice implements MethodInterceptor<Object, O
         }
     }
 
-    private Object handleBlockingCall(String clientName, Class returnType, Supplier<Object> supplier) {
+    private Object handleBlockingCall(Class returnType, Supplier<Object> supplier) {
         try {
             if (void.class == returnType) {
                 supplier.get();
@@ -633,11 +619,7 @@ public class HttpClientIntroductionAdvice implements MethodInterceptor<Object, O
                 return supplier.get();
             }
         } catch (RuntimeException t) {
-            if (LOG.isDebugEnabled()) {
-                LOG.debug("Client [{}] received HTTP error response: {}", clientName, t.getMessage(), t);
-            }
-
-            if (t instanceof HttpClientResponseException exception && exception.code() == HttpStatus.NOT_FOUND.getCode()) {
+            if (t instanceof HttpClientResponseException exception && exception.getStatus() == HttpStatus.NOT_FOUND) {
                 if (returnType == Optional.class) {
                     return Optional.empty();
                 } else if (HttpResponse.class.isAssignableFrom(returnType)) {

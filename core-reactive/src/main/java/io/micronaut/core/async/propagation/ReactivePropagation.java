@@ -89,13 +89,10 @@ public final class ReactivePropagation {
             @NonNull
             @Override
             public Context currentContext() {
-                Context ctx;
                 if (actual instanceof CoreSubscriber<T> actualSubscriber) {
-                    ctx = actualSubscriber.currentContext();
-                } else {
-                    ctx = Context.empty();
+                    return actualSubscriber.currentContext();
                 }
-                return ReactorPropagation.addPropagatedContext(ctx, propagatedContext);
+                return CoreSubscriber.super.currentContext();
             }
 
             @Override

@@ -30,6 +30,7 @@ import io.micronaut.core.type.Argument;
 import io.micronaut.core.util.StringUtils;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.annotation.FilterMatcher;
+import io.micronaut.http.bind.DefaultRequestBinderRegistry;
 import io.micronaut.http.bind.RequestBinderRegistry;
 import io.micronaut.http.body.MessageBodyHandlerRegistry;
 import io.micronaut.http.body.MessageBodyReader;
@@ -43,8 +44,6 @@ import io.micronaut.http.client.LoadBalancer;
 import io.micronaut.http.client.LoadBalancerResolver;
 import io.micronaut.http.client.ProxyHttpClient;
 import io.micronaut.http.client.ProxyHttpClientRegistry;
-import io.micronaut.http.client.RawHttpClient;
-import io.micronaut.http.client.RawHttpClientRegistry;
 import io.micronaut.http.client.ServiceHttpClientConfiguration;
 import io.micronaut.http.client.StreamingHttpClient;
 import io.micronaut.http.client.StreamingHttpClientRegistry;
@@ -73,16 +72,16 @@ import io.micronaut.json.body.CustomizableJsonHandler;
 import io.micronaut.json.codec.MapperMediaTypeCodec;
 import io.micronaut.runtime.context.scope.refresh.RefreshEvent;
 import io.micronaut.runtime.context.scope.refresh.RefreshEventListener;
-import io.micronaut.scheduling.TaskExecutors;
 import io.micronaut.websocket.WebSocketClient;
 import io.micronaut.websocket.WebSocketClientRegistry;
 import io.micronaut.websocket.context.WebSocketBeanRegistry;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFactory;
 import io.netty.channel.EventLoopGroup;
+import io.netty.channel.socket.DatagramChannel;
+import io.netty.channel.socket.SocketChannel;
 import io.netty.resolver.AddressResolverGroup;
 import jakarta.annotation.PreDestroy;
-import jakarta.inject.Named;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -96,7 +95,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
 
 /**
@@ -115,7 +113,6 @@ class DefaultNettyHttpClientRegistry implements AutoCloseable,
         StreamingHttpClientRegistry<StreamingHttpClient>,
         WebSocketClientRegistry<WebSocketClient>,
         ProxyHttpClientRegistry<ProxyHttpClient>,
-        RawHttpClientRegistry,
         ChannelPipelineCustomizer,
         NettyClientCustomizer.Registry,
         RefreshEventListener {
@@ -135,7 +132,6 @@ class DefaultNettyHttpClientRegistry implements AutoCloseable,
     private final JsonMapper jsonMapper;
     private final Collection<ChannelPipelineListener> pipelineListeners = new CopyOnWriteArrayList<>();
     private final CompositeNettyClientCustomizer clientCustomizer = new CompositeNettyClientCustomizer();
-    private final ExecutorService blockingExecutor;
 
     /**
      * Default constructor.
@@ -151,7 +147,6 @@ class DefaultNettyHttpClientRegistry implements AutoCloseable,
      * @param eventLoopGroupFactory           The event loop group factory
      * @param beanContext                     The bean context
      * @param jsonMapper                      JSON Mapper
-     * @param blockingExecutor                Optional executor for blocking operations
      */
     public DefaultNettyHttpClientRegistry(
             HttpClientConfiguration defaultHttpClientConfiguration,
@@ -164,10 +159,7 @@ class DefaultNettyHttpClientRegistry implements AutoCloseable,
             EventLoopGroupRegistry eventLoopGroupRegistry,
             EventLoopGroupFactory eventLoopGroupFactory,
             BeanContext beanContext,
-            JsonMapper jsonMapper,
-            @Nullable
-            @Named(TaskExecutors.BLOCKING)
-            ExecutorService blockingExecutor) {
+            JsonMapper jsonMapper) {
         this.clientFilterResolver = httpClientFilterResolver;
         this.defaultHttpClientConfiguration = defaultHttpClientConfiguration;
         this.loadBalancerResolver = loadBalancerResolver;
@@ -179,12 +171,11 @@ class DefaultNettyHttpClientRegistry implements AutoCloseable,
         this.eventLoopGroupFactory = eventLoopGroupFactory;
         this.eventLoopGroupRegistry = eventLoopGroupRegistry;
         this.jsonMapper = jsonMapper;
-        this.blockingExecutor = blockingExecutor;
     }
 
     @NonNull
     @Override
-    public DefaultHttpClient getClient(@NonNull HttpVersionSelection httpVersion, @NonNull String clientId, @Nullable String path) {
+    public HttpClient getClient(@NonNull HttpVersionSelection httpVersion, @NonNull String clientId, @Nullable String path) {
         final ClientKey key = new ClientKey(
                 httpVersion,
                 clientId,
@@ -194,11 +185,6 @@ class DefaultNettyHttpClientRegistry implements AutoCloseable,
                 null
         );
         return getClient(key, beanContext, AnnotationMetadata.EMPTY_METADATA);
-    }
-
-    @Override
-    public @NonNull RawHttpClient getRawClient(@NonNull HttpVersionSelection httpVersion, @NonNull String clientId, @Nullable String path) {
-        return getClient(httpVersion, clientId, path);
     }
 
     @Override
@@ -392,19 +378,19 @@ class DefaultNettyHttpClientRegistry implements AutoCloseable,
             }
 
 
-            final DefaultHttpClientBuilder builder = clientBuilder(
+            final DefaultHttpClient client = buildClient(
+                    loadBalancer,
+                    clientKey.httpVersion,
                     configuration,
                     clientId,
+                    contextPath,
                     beanContext,
                     annotationMetadata
-            )
-                .loadBalancer(loadBalancer)
-                .explicitHttpVersion(clientKey.httpVersion)
-                .contextPath(contextPath);
+            );
             final JsonFeatures jsonFeatures = clientKey.jsonFeatures;
             if (jsonFeatures != null) {
                 List<MediaTypeCodec> codecs = new ArrayList<>(2);
-                MediaTypeCodecRegistry codecRegistry = builder.codecRegistry;
+                MediaTypeCodecRegistry codecRegistry = client.getMediaTypeCodecRegistry();
                 for (MediaTypeCodec codec : codecRegistry.getCodecs()) {
                     if (codec instanceof MapperMediaTypeCodec typeCodec) {
                         codecs.add(typeCodec.cloneWithFeatures(jsonFeatures));
@@ -415,9 +401,10 @@ class DefaultNettyHttpClientRegistry implements AutoCloseable,
                 if (!codecRegistry.findCodec(MediaType.APPLICATION_JSON_TYPE).isPresent()) {
                     codecs.add(createNewJsonCodec(this.beanContext, jsonFeatures));
                 }
-                builder.codecRegistry(MediaTypeCodecRegistry.of(codecs));
-                builder.handlerRegistry(new MessageBodyHandlerRegistry() {
-                    final MessageBodyHandlerRegistry delegate = builder.handlerRegistry;
+                client.setMediaTypeCodecRegistry(MediaTypeCodecRegistry.of(codecs));
+
+                client.setHandlerRegistry(new MessageBodyHandlerRegistry() {
+                    final MessageBodyHandlerRegistry delegate = client.getHandlerRegistry();
 
                     @SuppressWarnings("unchecked")
                     private <T> T customize(T handler) {
@@ -438,39 +425,49 @@ class DefaultNettyHttpClientRegistry implements AutoCloseable,
                     }
                 });
             }
-            return builder.build();
+            return client;
         });
     }
 
-    private DefaultHttpClientBuilder clientBuilder(
+    private DefaultHttpClient buildClient(
+            LoadBalancer loadBalancer,
+            HttpVersionSelection httpVersion,
             HttpClientConfiguration configuration,
             String clientId,
+            String contextPath,
             BeanContext beanContext,
             AnnotationMetadata annotationMetadata) {
 
+        EventLoopGroup eventLoopGroup = resolveEventLoopGroup(configuration, beanContext);
+        ConversionService conversionService = beanContext.getBean(ConversionService.class);
         String addressResolverGroupName = configuration.getAddressResolverGroupName();
-        DefaultHttpClientBuilder builder = DefaultHttpClient.builder();
-        beanContext.findBean(RequestBinderRegistry.class).ifPresent(builder::requestBinderRegistry);
-        return builder
-            .configuration(configuration)
-            .filterResolver(clientFilterResolver)
-            .clientFilterEntries(clientFilterResolver.resolveFilterEntries(new ClientFilterResolutionContext(
-                clientId == null ? null : Collections.singletonList(clientId),
-                annotationMetadata
-            )))
-            .threadFactory(threadFactory)
-            .nettyClientSslBuilder(nettyClientSslBuilder)
-            .codecRegistry(codecRegistry)
-            .handlerRegistry(handlerRegistry)
-            .webSocketBeanRegistry(WebSocketBeanRegistry.forClient(beanContext))
-            .eventLoopGroup(resolveEventLoopGroup(configuration, beanContext))
-            .socketChannelFactory(resolveSocketChannelFactory(NettyChannelType.CLIENT_SOCKET, configuration, beanContext))
-            .udpChannelFactory(resolveSocketChannelFactory(NettyChannelType.DATAGRAM_SOCKET, configuration, beanContext))
-            .clientCustomizer(clientCustomizer)
-            .informationalServiceId(clientId)
-            .conversionService(beanContext.getBean(ConversionService.class))
-            .resolverGroup(addressResolverGroupName == null ? null : beanContext.getBean(AddressResolverGroup.class, Qualifiers.byName(addressResolverGroupName)))
-            .blockingExecutor(blockingExecutor);
+        AddressResolverGroup<?> resolverGroup = addressResolverGroupName == null ? null : beanContext.getBean(AddressResolverGroup.class, Qualifiers.byName(addressResolverGroupName));
+        return new DefaultHttpClient(
+                loadBalancer,
+                httpVersion,
+                configuration,
+                contextPath,
+                clientFilterResolver,
+                clientFilterResolver.resolveFilterEntries(new ClientFilterResolutionContext(
+                        clientId == null ? null : Collections.singletonList(clientId),
+                        annotationMetadata
+                )),
+                threadFactory,
+                nettyClientSslBuilder,
+                codecRegistry,
+                handlerRegistry,
+                WebSocketBeanRegistry.forClient(beanContext),
+                beanContext.findBean(RequestBinderRegistry.class).orElseGet(() ->
+                        new DefaultRequestBinderRegistry(conversionService)
+                ),
+                eventLoopGroup,
+                resolveSocketChannelFactory(NettyChannelType.CLIENT_SOCKET, SocketChannel.class, configuration, beanContext),
+                resolveSocketChannelFactory(NettyChannelType.DATAGRAM_SOCKET, DatagramChannel.class, configuration, beanContext),
+                clientCustomizer,
+                clientId,
+                conversionService,
+                resolverGroup
+        );
     }
 
     private EventLoopGroup resolveEventLoopGroup(HttpClientConfiguration configuration, BeanContext beanContext) {
@@ -494,15 +491,15 @@ class DefaultNettyHttpClientRegistry implements AutoCloseable,
             if (configuration == null) {
                 configuration = defaultHttpClientConfiguration;
             }
-            DefaultHttpClient c = clientBuilder(
+            DefaultHttpClient c = buildClient(
+                loadBalancer,
+                null,
                 configuration,
                 null,
+                loadBalancer.getContextPath().orElse(null),
                 beanContext,
                 AnnotationMetadata.EMPTY_METADATA
-            )
-                .loadBalancer(loadBalancer)
-                .contextPath(loadBalancer.getContextPath().orElse(null))
-                .build();
+            );
             balancedClients.add(c);
             return c;
         } else {
@@ -510,7 +507,7 @@ class DefaultNettyHttpClientRegistry implements AutoCloseable,
         }
     }
 
-    private ChannelFactory<? extends Channel> resolveSocketChannelFactory(NettyChannelType type, HttpClientConfiguration configuration, BeanContext beanContext) {
+    private <C extends Channel> ChannelFactory<? extends C> resolveSocketChannelFactory(NettyChannelType type, Class<C> channelClass, HttpClientConfiguration configuration, BeanContext beanContext) {
         final String eventLoopGroup = configuration.getEventLoopGroup();
 
         final EventLoopGroupConfiguration eventLoopGroupConfiguration = beanContext.findBean(EventLoopGroupConfiguration.class, Qualifiers.byName(eventLoopGroup))
@@ -522,7 +519,7 @@ class DefaultNettyHttpClientRegistry implements AutoCloseable,
                     }
                 });
 
-        return () -> eventLoopGroupFactory.channelInstance(type, eventLoopGroupConfiguration);
+        return () -> channelClass.cast(eventLoopGroupFactory.channelInstance(type, eventLoopGroupConfiguration));
     }
 
     private ClientKey getClientKey(AnnotationMetadata metadata) {

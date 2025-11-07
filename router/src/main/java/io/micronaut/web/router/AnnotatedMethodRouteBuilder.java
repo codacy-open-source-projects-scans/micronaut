@@ -76,7 +76,8 @@ public class AnnotatedMethodRouteBuilder extends DefaultRouteBuilder implements 
         httpMethodsHandlers.put(Get.class, (RouteDefinition definition) -> {
             final BeanDefinition bean = definition.beanDefinition;
             final ExecutableMethod method = definition.executableMethod;
-            Set<String> uris = this.resolveUrisMapping(Get.class, method);
+            Set<String> uris = CollectionUtils.setOf(method.stringValues(Get.class, "uris"));
+            uris.add(method.stringValue(HttpMethodMapping.class).orElse(UriMapping.DEFAULT_URI));
             for (String uri: uris) {
                 MediaType[] produces = resolveProduces(method);
                 UriRoute route = GET(resolveUri(bean, uri,
@@ -110,7 +111,8 @@ public class AnnotatedMethodRouteBuilder extends DefaultRouteBuilder implements 
         httpMethodsHandlers.put(Post.class, (RouteDefinition definition) -> {
             final ExecutableMethod method = definition.executableMethod;
             final BeanDefinition bean = definition.beanDefinition;
-            Set<String> uris = this.resolveUrisMapping(Post.class, method);
+            Set<String> uris = CollectionUtils.setOf(method.stringValues(Post.class, "uris"));
+            uris.add(method.stringValue(HttpMethodMapping.class).orElse(UriMapping.DEFAULT_URI));
             for (String uri: uris) {
                 MediaType[] consumes = resolveConsumes(method);
                 MediaType[] produces = resolveProduces(method);
@@ -133,7 +135,8 @@ public class AnnotatedMethodRouteBuilder extends DefaultRouteBuilder implements 
             final ExecutableMethod method = definition.executableMethod;
             final BeanDefinition bean = definition.beanDefinition;
 
-            Set<String> uris = this.resolveUrisMapping(CustomHttpMethod.class, method);
+            Set<String> uris = CollectionUtils.setOf(method.stringValues(CustomHttpMethod.class, "uris"));
+            uris.add(method.stringValue(HttpMethodMapping.class).orElse(UriMapping.DEFAULT_URI));
             for (String uri: uris) {
                 MediaType[] consumes = resolveConsumes(method);
                 MediaType[] produces = resolveProduces(method);
@@ -157,7 +160,8 @@ public class AnnotatedMethodRouteBuilder extends DefaultRouteBuilder implements 
             final ExecutableMethod method = definition.executableMethod;
             final BeanDefinition bean = definition.beanDefinition;
 
-            Set<String> uris = this.resolveUrisMapping(Put.class, method);
+            Set<String> uris = CollectionUtils.setOf(method.stringValues(Put.class, "uris"));
+            uris.add(method.stringValue(HttpMethodMapping.class).orElse(UriMapping.DEFAULT_URI));
             for (String uri: uris) {
                 MediaType[] consumes = resolveConsumes(method);
                 MediaType[] produces = resolveProduces(method);
@@ -180,7 +184,8 @@ public class AnnotatedMethodRouteBuilder extends DefaultRouteBuilder implements 
             final ExecutableMethod method = definition.executableMethod;
             final BeanDefinition bean = definition.beanDefinition;
 
-            Set<String> uris = this.resolveUrisMapping(Patch.class, method);
+            Set<String> uris = CollectionUtils.setOf(method.stringValues(Patch.class, "uris"));
+            uris.add(method.stringValue(HttpMethodMapping.class).orElse(UriMapping.DEFAULT_URI));
             for (String uri: uris) {
                 MediaType[] consumes = resolveConsumes(method);
                 MediaType[] produces = resolveProduces(method);
@@ -203,7 +208,8 @@ public class AnnotatedMethodRouteBuilder extends DefaultRouteBuilder implements 
             final ExecutableMethod method = definition.executableMethod;
             final BeanDefinition bean = definition.beanDefinition;
 
-            Set<String> uris = this.resolveUrisMapping(Delete.class, method);
+            Set<String> uris = CollectionUtils.setOf(method.stringValues(Delete.class, "uris"));
+            uris.add(method.stringValue(HttpMethodMapping.class).orElse(UriMapping.DEFAULT_URI));
             for (String uri: uris) {
                 MediaType[] consumes = resolveConsumes(method);
                 MediaType[] produces = resolveProduces(method);
@@ -227,7 +233,8 @@ public class AnnotatedMethodRouteBuilder extends DefaultRouteBuilder implements 
             final ExecutableMethod method = definition.executableMethod;
             final BeanDefinition bean = definition.beanDefinition;
 
-            Set<String> uris = this.resolveUrisMapping(Head.class, method);
+            Set<String> uris = CollectionUtils.setOf(method.stringValues(Head.class, "uris"));
+            uris.add(method.stringValue(HttpMethodMapping.class).orElse(UriMapping.DEFAULT_URI));
             for (String uri: uris) {
                 UriRoute route = HEAD(resolveUri(bean, uri,
                         method,
@@ -247,7 +254,8 @@ public class AnnotatedMethodRouteBuilder extends DefaultRouteBuilder implements 
             final ExecutableMethod method = definition.executableMethod;
             final BeanDefinition bean = definition.beanDefinition;
 
-            Set<String> uris = this.resolveUrisMapping(Options.class, method);
+            Set<String> uris = CollectionUtils.setOf(method.stringValues(Options.class, "uris"));
+            uris.add(method.stringValue(HttpMethodMapping.class).orElse(UriMapping.DEFAULT_URI));
             for (String uri: uris) {
                 MediaType[] consumes = resolveConsumes(method);
                 MediaType[] produces = resolveProduces(method);
@@ -270,7 +278,8 @@ public class AnnotatedMethodRouteBuilder extends DefaultRouteBuilder implements 
             final ExecutableMethod method = definition.executableMethod;
             final BeanDefinition bean = definition.beanDefinition;
 
-            Set<String> uris = this.resolveUrisMapping(Trace.class, method);
+            Set<String> uris = CollectionUtils.setOf(method.stringValues(Trace.class, "uris"));
+            uris.add(method.stringValue(HttpMethodMapping.class).orElse(UriMapping.DEFAULT_URI));
             for (String uri: uris) {
                 UriRoute route = TRACE(resolveUri(bean, uri,
                         method,
@@ -324,18 +333,6 @@ public class AnnotatedMethodRouteBuilder extends DefaultRouteBuilder implements 
                 }
             }
         );
-    }
-
-    private Set<String> resolveUrisMapping(Class<? extends Annotation> httpMethod, ExecutableMethod method) {
-        Set<String> uris = CollectionUtils.setOf(method.stringValues(httpMethod, "uris"));
-        Optional<String> uri = method.stringValue(HttpMethodMapping.class);
-        if (uris.isEmpty()) {
-            uris.add(uri.orElse(UriMapping.DEFAULT_URI));
-        } else {
-            uri.ifPresent(uris::add);
-        }
-
-        return uris;
     }
 
     private MediaType[] resolveConsumes(ExecutableMethod method) {

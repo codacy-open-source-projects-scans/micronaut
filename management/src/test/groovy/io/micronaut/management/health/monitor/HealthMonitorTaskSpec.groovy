@@ -6,7 +6,6 @@ import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.AppenderBase
 import io.micronaut.context.ApplicationContext
 import io.micronaut.context.annotation.Requires
-import io.micronaut.core.util.StringUtils
 import io.micronaut.runtime.server.EmbeddedServer
 import org.slf4j.LoggerFactory
 import spock.lang.Specification
@@ -30,8 +29,7 @@ class HealthMonitorTaskSpec extends Specification {
                 'spec.name'                 : 'HealthMonitorTask',
                 'micronaut.application.name': 'foo',
                 'micronaut.health.monitor.enabled': true,
-                'endpoints.health.sensitive': false,
-                'endpoints.health.deadlocked-threads.enabled': StringUtils.FALSE
+                'endpoints.health.sensitive': false
         ])
 
         PollingConditions conditions = new PollingConditions(timeout: 7)

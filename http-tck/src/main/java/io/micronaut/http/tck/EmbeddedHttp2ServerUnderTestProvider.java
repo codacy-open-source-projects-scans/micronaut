@@ -21,9 +21,6 @@ import io.micronaut.core.annotation.NonNull;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Embedded http2Server under test provider.
- */
 @Experimental
 public class EmbeddedHttp2ServerUnderTestProvider implements ServerUnderTestProvider {
     @Override

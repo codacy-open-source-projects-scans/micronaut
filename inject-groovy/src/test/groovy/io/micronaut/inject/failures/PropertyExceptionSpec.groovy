@@ -31,40 +31,38 @@ class PropertyExceptionSpec extends Specification {
         ApplicationContext context = ApplicationContext.run()
 
         when:"A bean is obtained that has a setter with @Inject"
-        context.getBean(MyClassB)
+        context.getBean(B)
 
         then:"The implementation is injected"
         BeanInstantiationException e = thrown()
         e.cause.message == 'bad'
         e.message.normalize() == '''\
-Error instantiating bean of type  [io.micronaut.inject.failures.PropertyExceptionSpec$MyClassB]
+Error instantiating bean of type  [io.micronaut.inject.failures.PropertyExceptionSpec$B]
 
 Message: bad
-Path Taken:
-new i.m.i.f.P$MyClassB()
-\\---> i.m.i.f.P$MyClassB#propA'''
+Path Taken: new B() --> B.a'''
 
         cleanup:
         context.close()
     }
 
     @Singleton
-    static class MyClassC {
+    static class C {
     }
     @Singleton
-    static class MyClassA {
+    static class A {
         @Inject
-        void setC(MyClassC propC) {
+        void setC(C c) {
             throw new RuntimeException("bad")
         }
     }
 
-    static class MyClassB {
+    static class B {
         @Inject
-        private MyClassA propA
+        private A a
 
-        MyClassA getPropA() {
-            return this.propA
+        A getA() {
+            return this.a
         }
     }
 

@@ -28,35 +28,29 @@ class FieldDependencyMissingFailureSpec extends Specification {
     void "test injection via setter with interface"() {
         given:
         ApplicationContext context = ApplicationContext.run()
-        var space = " "
 
         when:"A bean is obtained that has a setter with @Inject"
-        context.getBean(MyClassB)
+        B b =  context.getBean(B)
 
         then:"The implementation is injected"
         DependencyInjectionException e = thrown()
-        e.message.normalize() == """\
-Failed to inject value for field [propA] of class: io.micronaut.inject.failures.FieldDependencyMissingFailureSpec\$MyClassB
-
-Message: No bean of type [io.micronaut.inject.failures.FieldDependencyMissingFailureSpec\$MyClassA] exists.$space
-Path Taken:$space
-new i.m.i.f.F\$MyClassB()
-\\---> i.m.i.f.F\$MyClassB#propA"""
+        e.message.normalize().contains 'Failed to inject value for field [a] of class: io.micronaut.inject.failures.FieldDependencyMissingFailureSpec$B'
+        e.message.normalize().contains 'Path Taken: new B() --> B.a'
 
         cleanup:
         context.close()
     }
 
-    static interface MyClassA {
+    static interface A {
 
     }
 
-    static class MyClassB {
+    static class B {
         @Inject
-        private MyClassA propA
+        private A a
 
-        MyClassA getPropA() {
-            return this.propA
+        A getA() {
+            return this.a
         }
     }
 

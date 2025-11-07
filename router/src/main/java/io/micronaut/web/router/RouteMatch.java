@@ -49,9 +49,7 @@ public interface RouteMatch<R> extends Callable<R>, AnnotationMetadataProvider {
      * Fulfill argument values.
      *
      * @param argumentValues The argument values
-     * @deprecated No longer used
      */
-    @Deprecated(forRemoval = true, since = "4.9")
     void fulfill(Map<String, Object> argumentValues);
 
     /**

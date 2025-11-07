@@ -25,7 +25,6 @@ import io.micronaut.context.annotation.Primary;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Experimental;
 import io.micronaut.core.annotation.Internal;
-import io.micronaut.core.annotation.NonNull;
 import io.micronaut.core.annotation.Nullable;
 import io.micronaut.core.annotation.Order;
 import io.micronaut.core.convert.ConversionService;
@@ -45,8 +44,6 @@ import io.micronaut.http.client.HttpClientRegistry;
 import io.micronaut.http.client.HttpVersionSelection;
 import io.micronaut.http.client.LoadBalancer;
 import io.micronaut.http.client.LoadBalancerResolver;
-import io.micronaut.http.client.RawHttpClient;
-import io.micronaut.http.client.RawHttpClientRegistry;
 import io.micronaut.http.client.annotation.Client;
 import io.micronaut.http.client.exceptions.HttpClientException;
 import io.micronaut.http.client.filter.ClientFilterResolutionContext;
@@ -84,7 +81,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Order(2) // If both this and the netty client are present, netty is the default.
 @Internal
 @Experimental
-public final class DefaultJdkHttpClientRegistry implements AutoCloseable, HttpClientRegistry<HttpClient>, RawHttpClientRegistry {
+public final class DefaultJdkHttpClientRegistry implements AutoCloseable, HttpClientRegistry<HttpClient> {
 
     private static final Logger LOG = LoggerFactory.getLogger(DefaultJdkHttpClientRegistry.class);
 
@@ -153,28 +150,6 @@ public final class DefaultJdkHttpClientRegistry implements AutoCloseable, HttpCl
         BeanContext beanContext
     ) {
         return resolveDefaultHttpClient(injectionPoint, loadBalancer, configuration, beanContext);
-    }
-
-    /**
-     * Creates a {@literal java.net.http.*} HTTP Client.
-     *
-     * @param injectionPoint
-     * @param loadBalancer
-     * @param configuration
-     * @param beanContext
-     * @return A {@literal java.net.http.*} HTTP Client
-     */
-    @Bean
-    @BootstrapContextCompatible
-    @Primary
-    @Order(2) // If both this and the netty client are present, netty is the default.
-    RawHttpClient rawHttpClient(
-        @Nullable InjectionPoint<?> injectionPoint,
-        @Parameter @Nullable LoadBalancer loadBalancer,
-        @Parameter @Nullable HttpClientConfiguration configuration,
-        BeanContext beanContext
-    ) {
-        return new JdkRawHttpClient(resolveDefaultHttpClient(injectionPoint, loadBalancer, configuration, beanContext));
     }
 
     private DefaultJdkHttpClient resolveDefaultHttpClient(
@@ -352,7 +327,7 @@ public final class DefaultJdkHttpClientRegistry implements AutoCloseable, HttpCl
     }
 
     @Override
-    public DefaultJdkHttpClient getClient(HttpVersionSelection httpVersion, String clientId, String path) {
+    public HttpClient getClient(HttpVersionSelection httpVersion, String clientId, String path) {
         final ClientKey key = new ClientKey(
             httpVersion,
             clientId,
@@ -390,11 +365,6 @@ public final class DefaultJdkHttpClientRegistry implements AutoCloseable, HttpCl
             }
         }
         clients.clear();
-    }
-
-    @Override
-    public @NonNull RawHttpClient getRawClient(@NonNull HttpVersionSelection httpVersion, @NonNull String clientId, @Nullable String path) {
-        return new JdkRawHttpClient(getClient(httpVersion, clientId, path));
     }
 
     /**

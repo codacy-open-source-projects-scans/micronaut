@@ -158,15 +158,13 @@ class DeclaredBeanElementCreator extends AbstractBeanElementCreator {
         if (processAsProperties()) {
             memberQuery = memberQuery.excludePropertyElements();
             for (PropertyElement propertyElement : classElement.getBeanProperties()) {
-                if (visitPropertyInternal(visitor, propertyElement)) {
-                    propertyElement.getField().ifPresent(processedFields::add);
-                }
+                propertyElement.getField().ifPresent(processedFields::add);
+                visitPropertyInternal(visitor, propertyElement);
             }
         } else {
             for (PropertyElement propertyElement : classElement.getSyntheticBeanProperties()) {
-                if (visitPropertyInternal(visitor, propertyElement)) {
-                    propertyElement.getField().ifPresent(processedFields::add);
-                }
+                propertyElement.getField().ifPresent(processedFields::add);
+                visitPropertyInternal(visitor, propertyElement);
             }
         }
         List<MemberElement> memberElements = new ArrayList<>(classElement.getEnclosedElements(memberQuery));
@@ -197,14 +195,13 @@ class DeclaredBeanElementCreator extends AbstractBeanElementCreator {
         }
     }
 
-    private boolean visitPropertyInternal(BeanDefinitionVisitor visitor, PropertyElement propertyElement) {
+    private void visitPropertyInternal(BeanDefinitionVisitor visitor, PropertyElement propertyElement) {
         boolean claimed = visitProperty(visitor, propertyElement);
         if (claimed) {
             propertyElement.getReadMethod().ifPresent(element -> addOriginatingElementIfNecessary(visitor, element));
             propertyElement.getWriteMethod().ifPresent(element -> addOriginatingElementIfNecessary(visitor, element));
             propertyElement.getField().ifPresent(element -> addOriginatingElementIfNecessary(visitor, element));
         }
-        return claimed;
     }
 
     /**

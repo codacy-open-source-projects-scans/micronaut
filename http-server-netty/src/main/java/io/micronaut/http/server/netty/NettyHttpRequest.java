@@ -20,6 +20,7 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.NonNull;
 import io.micronaut.core.annotation.Nullable;
 import io.micronaut.core.async.publisher.Publishers;
+import io.micronaut.core.attr.AttributeHolder;
 import io.micronaut.core.bind.ArgumentBinder;
 import io.micronaut.core.convert.ArgumentConversionContext;
 import io.micronaut.core.convert.ConversionService;
@@ -51,8 +52,6 @@ import io.micronaut.http.netty.AbstractNettyHttpRequest;
 import io.micronaut.http.netty.NettyHttpHeaders;
 import io.micronaut.http.netty.NettyHttpParameters;
 import io.micronaut.http.netty.NettyHttpRequestBuilder;
-import io.micronaut.http.netty.body.AvailableNettyByteBody;
-import io.micronaut.http.netty.body.NettyByteBody;
 import io.micronaut.http.netty.channel.ChannelPipelineCustomizer;
 import io.micronaut.http.netty.cookies.NettyCookie;
 import io.micronaut.http.netty.cookies.NettyCookies;
@@ -60,6 +59,8 @@ import io.micronaut.http.netty.stream.DefaultStreamedHttpRequest;
 import io.micronaut.http.netty.stream.DelegateStreamedHttpRequest;
 import io.micronaut.http.netty.stream.StreamedHttpRequest;
 import io.micronaut.http.server.HttpServerConfiguration;
+import io.micronaut.http.server.netty.body.AvailableNettyByteBody;
+import io.micronaut.http.server.netty.body.NettyByteBody;
 import io.micronaut.http.server.netty.handler.Http2ServerHandler;
 import io.micronaut.http.server.netty.multipart.NettyCompletedFileUpload;
 import io.micronaut.web.router.DefaultUriRouteMatch;
@@ -115,7 +116,7 @@ import java.util.function.Supplier;
  * @since 1.0
  */
 @Internal
-public final class NettyHttpRequest<T> extends AbstractNettyHttpRequest<T> implements HttpRequest<T>, PushCapableHttpRequest<T>, io.micronaut.http.FullHttpRequest<T>, ServerHttpRequest<T> {
+public class NettyHttpRequest<T> extends AbstractNettyHttpRequest<T> implements HttpRequest<T>, PushCapableHttpRequest<T>, io.micronaut.http.FullHttpRequest<T>, ServerHttpRequest<T> {
     private static final Logger LOG = LoggerFactory.getLogger(NettyHttpRequest.class);
 
     /**
@@ -207,23 +208,23 @@ public final class NettyHttpRequest<T> extends AbstractNettyHttpRequest<T> imple
     }
 
     @Override
-    public ByteBody byteBody() {
+    public final ByteBody byteBody() {
         return body;
     }
 
-    public void setLegacyBody(Object legacyBody) {
+    public final void setLegacyBody(Object legacyBody) {
         this.legacyBody = legacyBody;
     }
 
-    public void addRouteWaitsFor(ExecutionFlow<?> executionFlow) {
+    public final void addRouteWaitsFor(ExecutionFlow<?> executionFlow) {
         routeWaitsFor = routeWaitsFor.then(() -> executionFlow);
     }
 
-    public ExecutionFlow<?> getRouteWaitsFor() {
+    public final ExecutionFlow<?> getRouteWaitsFor() {
         return routeWaitsFor;
     }
 
-    public FormRouteCompleter formRouteCompleter() {
+    public final FormRouteCompleter formRouteCompleter() {
         assert isFormOrMultipartData();
         if (formRouteCompleter == null) {
             formRouteCompleter = new FormRouteCompleter((RouteMatch<?>) getAttribute(HttpAttributes.ROUTE_MATCH).get(), getChannelHandlerContext().channel().eventLoop());
@@ -231,7 +232,7 @@ public final class NettyHttpRequest<T> extends AbstractNettyHttpRequest<T> imple
         return formRouteCompleter;
     }
 
-    public boolean hasFormRouteCompleter() {
+    public final boolean hasFormRouteCompleter() {
         return formRouteCompleter != null;
     }
 
@@ -385,46 +386,43 @@ public final class NettyHttpRequest<T> extends AbstractNettyHttpRequest<T> imple
      */
     @Internal
     public void release() {
+        Object routeMatchO = ((AttributeHolder) this).getAttribute(HttpAttributes.ROUTE_MATCH).orElse(null);
+        // usually this is a DefaultUriRouteMatch, avoid scalability issues here
+        RouteMatch<?> routeMatch = routeMatchO instanceof DefaultUriRouteMatch<?, ?> urm ? urm : (RouteMatch<?>) routeMatchO;
+        if (routeMatch != null) {
+            // discard parameters that have already been bound
+            for (Object toDiscard : routeMatch.getVariableValues().values()) {
+                if (toDiscard instanceof io.micronaut.core.io.buffer.ReferenceCounted rc) {
+                    rc.release();
+                }
+                if (toDiscard instanceof io.netty.util.ReferenceCounted rc) {
+                    rc.release();
+                }
+                if (toDiscard instanceof NettyCompletedFileUpload fu) {
+                    fu.discard();
+                }
+            }
+        }
         body.close();
         if (formRouteCompleter != null) {
             formRouteCompleter.release();
         }
         if (attributes != null) {
-            attributes.forEach(NettyHttpRequest::cleanup);
-        }
-    }
-
-    private static void cleanup(String k, Object v) {
-        //noinspection StringEquality
-        if (k == HttpAttributes.ROUTE_MATCH.toString()) {
-            // usually this is a DefaultUriRouteMatch, avoid scalability issues here
-            RouteMatch<?> routeMatch = v instanceof DefaultUriRouteMatch<?, ?> urm ? urm : (RouteMatch<?>) v;
-            if (routeMatch != null) {
-                // discard parameters that have already been bound
-                for (Object toDiscard : routeMatch.getVariableValues().values()) {
-                    if (toDiscard instanceof io.micronaut.core.io.buffer.ReferenceCounted rc) {
-                        rc.release();
-                    }
-                    if (toDiscard instanceof ReferenceCounted rc) {
-                        rc.release();
-                    }
-                    if (toDiscard instanceof NettyCompletedFileUpload fu) {
-                        fu.discard();
-                    }
+            attributes.forEach((k, v) -> {
+                //noinspection StringEquality
+                if (k == HttpAttributes.ROUTE_MATCH.toString() || k == HttpAttributes.ROUTE_INFO.toString() || v instanceof String) {
+                    // perf: avoid an instanceof in releaseIfNecessary
+                    return;
                 }
-            }
-            // perf: avoid an instanceof in releaseIfNecessary
-            return;
+                releaseIfNecessary(v);
+            });
         }
-        //noinspection StringEquality
-        if (k == HttpAttributes.ROUTE_INFO.toString() || v instanceof String) {
-            // perf: avoid an instanceof in releaseIfNecessary
-            return;
-        }
-        releaseIfNecessary(v);
     }
 
-    private static void releaseIfNecessary(Object value) {
+    /**
+     * @param value An object with a value
+     */
+    protected void releaseIfNecessary(Object value) {
         if (value instanceof ReferenceCounted referenceCounted) {
             int i = referenceCounted.refCnt();
             if (i != 0) {
@@ -612,7 +610,7 @@ public final class NettyHttpRequest<T> extends AbstractNettyHttpRequest<T> imple
      * @return Return true if the request is form data.
      */
     @Internal
-    public boolean isFormOrMultipartData() {
+    public final boolean isFormOrMultipartData() {
         MediaType ct = getContentType().orElse(null);
         return ct != null && (ct.equals(MediaType.APPLICATION_FORM_URLENCODED_TYPE) || ct.equals(MediaType.MULTIPART_FORM_DATA_TYPE));
     }
@@ -626,11 +624,6 @@ public final class NettyHttpRequest<T> extends AbstractNettyHttpRequest<T> imple
     @Override
     public Optional<io.netty.handler.codec.http.HttpRequest> toHttpRequestDirect() {
         return Optional.of(new DelegateStreamedHttpRequest(nettyRequest, NettyByteBody.toByteBufs(byteBody()).map(DefaultHttpContent::new)));
-    }
-
-    @Override
-    public ByteBody byteBodyDirect() {
-        return byteBody();
     }
 
     @Override
@@ -868,12 +861,6 @@ public final class NettyHttpRequest<T> extends AbstractNettyHttpRequest<T> imple
         public Optional<io.netty.handler.codec.http.HttpRequest> toHttpRequestDirect() {
             return body != null ? Optional.empty() : NettyHttpRequest.this.toHttpRequestDirect();
         }
-
-        @Override
-        public ByteBody byteBodyDirect() {
-            // if the body has been changed we can't return the byteBody directly
-            return body != null ? null : NettyHttpRequest.this.byteBodyDirect();
-        }
     }
 
     private abstract static class BodyConvertor<T> {
@@ -908,6 +895,10 @@ public final class NettyHttpRequest<T> extends AbstractNettyHttpRequest<T> imple
                 return conversion;
             }
             return nextConvertor.convert(conversionContext, value);
+        }
+
+        public void cleanup() {
+            nextConvertor = null;
         }
 
     }

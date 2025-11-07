@@ -40,13 +40,13 @@ class VersioningNotMatchSpec extends VersioningSpec {
         e.status == status
 
         when:
-        Optional<Map> errorBody = e.response.getBody(Map)
+        Optional<Map> erroreBody = e.response.getBody(Map)
 
         then:
-        errorBody.isPresent()
+        erroreBody.isPresent()
 
         when:
-        Map body = errorBody.get()
+        Map body = erroreBody.get()
         then:
         body
         body._embedded.errors[0].message.contains(jsonErrorMessage)

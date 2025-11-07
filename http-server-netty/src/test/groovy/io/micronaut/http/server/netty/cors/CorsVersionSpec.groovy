@@ -95,8 +95,8 @@ class CorsVersionSpec extends Specification {
         client.exchange(request)
 
         then:
-        HttpClientResponseException ex = thrown()
-        ex.status == HttpStatus.FORBIDDEN
+        def ex = thrown(HttpClientResponseException)
+        ex.status == HttpStatus.NOT_FOUND
     }
 
     void "preflight for version routed from private network"() {
@@ -117,8 +117,8 @@ class CorsVersionSpec extends Specification {
         client.exchange(request)
 
         then:
-        HttpClientResponseException ex = thrown()
-        ex.status == HttpStatus.FORBIDDEN
+        def ex = thrown(HttpClientResponseException)
+        ex.status == HttpStatus.NOT_FOUND
     }
 
     static Map<String, String> preflightHeaders(String accessControlRequestHeaders, boolean accessControlRequestPrivateNetwork) {

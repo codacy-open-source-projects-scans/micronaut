@@ -17,8 +17,6 @@ package io.micronaut.http.client.jdk;
 
 import io.micronaut.core.annotation.Experimental;
 import io.micronaut.core.annotation.Internal;
-import io.micronaut.core.annotation.NonNull;
-import io.micronaut.core.annotation.Nullable;
 import io.micronaut.core.convert.ConversionService;
 import io.micronaut.core.io.buffer.ByteArrayBufferFactory;
 import io.micronaut.http.MediaType;
@@ -27,8 +25,6 @@ import io.micronaut.http.body.MessageBodyHandlerRegistry;
 import io.micronaut.http.body.WritableBodyWriter;
 import io.micronaut.http.client.AbstractHttpClientFactory;
 import io.micronaut.http.client.HttpClientConfiguration;
-import io.micronaut.http.client.RawHttpClient;
-import io.micronaut.http.client.RawHttpClientFactory;
 import io.micronaut.json.JsonMapper;
 import io.micronaut.json.body.JsonMessageHandler;
 import io.micronaut.runtime.ApplicationConfiguration;
@@ -42,7 +38,7 @@ import java.net.URI;
  */
 @Internal
 @Experimental
-public class JdkHttpClientFactory extends AbstractHttpClientFactory<DefaultJdkHttpClient> implements RawHttpClientFactory {
+public class JdkHttpClientFactory extends AbstractHttpClientFactory<DefaultJdkHttpClient> {
 
     public JdkHttpClientFactory() {
         super(null, createDefaultMessageBodyHandlerRegistry(), ConversionService.SHARED);
@@ -69,10 +65,5 @@ public class JdkHttpClientFactory extends AbstractHttpClientFactory<DefaultJdkHt
         registry.add(MediaType.APPLICATION_JSON_TYPE, new JsonMessageHandler<>(mapper));
         registry.add(MediaType.APPLICATION_JSON_STREAM_TYPE, new JsonMessageHandler<>(mapper));
         return registry;
-    }
-
-    @Override
-    public @NonNull RawHttpClient createRawClient(@Nullable URI url, @NonNull HttpClientConfiguration configuration) {
-        return new JdkRawHttpClient(createHttpClient(url, configuration));
     }
 }

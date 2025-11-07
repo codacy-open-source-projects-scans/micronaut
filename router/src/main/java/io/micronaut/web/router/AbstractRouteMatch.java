@@ -378,11 +378,12 @@ abstract class AbstractRouteMatch<T, R> implements MethodBasedRouteMatch<T, R> {
     }
 
     private <E> ArgumentConversionContext<E> newContext(Argument<E> argument, HttpRequest<?> request) {
-        return ConversionContext.of(
+        ArgumentConversionContext<E> conversionContext = ConversionContext.of(
             argument,
             request.getLocale().orElse(null),
             request.getCharacterEncoding()
         );
+        return conversionContext;
     }
 
     private <E> void fulfillValue(int index, Argument<E> argument, ArgumentBinder.BindingResult<E> bindingResult) {

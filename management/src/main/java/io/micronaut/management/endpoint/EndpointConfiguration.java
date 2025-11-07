@@ -17,7 +17,6 @@ package io.micronaut.management.endpoint;
 
 import io.micronaut.context.annotation.EachProperty;
 import io.micronaut.context.annotation.Parameter;
-import io.micronaut.core.annotation.Nullable;
 
 import java.util.Optional;
 
@@ -34,14 +33,11 @@ public class EndpointConfiguration {
      * The prefix for endpoints configurations.
      */
     public static final String PREFIX = "endpoints";
-    private static final String SLASH = "/";
 
     private Boolean enabled;
     private Boolean sensitive;
-    @Nullable
-    private String path;
-    private final String id;
 
+    private final String id;
     private EndpointDefaultConfiguration defaultConfiguration;
 
     /**
@@ -97,26 +93,5 @@ public class EndpointConfiguration {
      */
     public void setSensitive(Boolean sensitive) {
         this.sensitive = sensitive;
-    }
-
-    /**
-     * Endpoint's path. If not set the endpoint name is used as the path.
-     * @param path Endpoint's path
-     * @since 4.8.0
-     */
-    public void setPath(@Nullable String path) {
-        this.path = path != null && path.startsWith(SLASH)
-            ? path.substring(1)
-            : path;
-    }
-
-    /**
-     * Endpoint's path. If not set the endpoint name is used as the path.
-     * @return Endpoint's path
-     * @since 4.8.0
-     */
-    @Nullable
-    public String getPath() {
-        return path;
     }
 }

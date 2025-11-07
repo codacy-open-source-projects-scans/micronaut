@@ -17,15 +17,14 @@ package io.micronaut.http.server.netty.body;
 
 import io.micronaut.core.annotation.Experimental;
 import io.micronaut.core.annotation.Internal;
-import io.micronaut.core.io.buffer.ByteBufferFactory;
 import io.micronaut.core.type.Argument;
 import io.micronaut.core.type.MutableHeaders;
-import io.micronaut.http.ByteBodyHttpResponse;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.MutableHttpResponse;
-import io.micronaut.http.body.ResponseBodyWriter;
 import io.micronaut.http.codec.CodecException;
+import io.micronaut.http.netty.body.NettyBodyWriter;
+import io.micronaut.http.netty.body.NettyWriteContext;
 import io.micronaut.http.server.types.files.SystemFile;
 import jakarta.inject.Singleton;
 
@@ -41,7 +40,7 @@ import java.io.OutputStream;
 @Internal
 @Experimental
 @Singleton
-public final class FileBodyWriter implements ResponseBodyWriter<File> {
+public final class FileBodyWriter implements NettyBodyWriter<File> {
     private final SystemFileBodyWriter systemFileBodyWriter;
 
     public FileBodyWriter(SystemFileBodyWriter systemFileBodyWriter) {
@@ -49,10 +48,15 @@ public final class FileBodyWriter implements ResponseBodyWriter<File> {
     }
 
     @Override
-    public ByteBodyHttpResponse<?> write(ByteBufferFactory<?, ?> bufferFactory, HttpRequest<?> request, MutableHttpResponse<File> outgoingResponse, Argument<File> type, MediaType mediaType, File object) throws CodecException {
+    public void writeTo(HttpRequest<?> request, MutableHttpResponse<File> outgoingResponse, Argument<File> type, MediaType mediaType, File object, NettyWriteContext nettyContext) throws CodecException {
         SystemFile systemFile = new SystemFile(object);
         MutableHttpResponse<SystemFile> newResponse = outgoingResponse.body(systemFile);
-        return systemFileBodyWriter.write(request, newResponse, systemFile);
+        systemFileBodyWriter.writeTo(
+            request,
+            newResponse,
+            systemFile,
+            nettyContext
+        );
     }
 
     @Override

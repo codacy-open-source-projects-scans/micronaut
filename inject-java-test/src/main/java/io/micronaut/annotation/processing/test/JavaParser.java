@@ -68,13 +68,6 @@ public class JavaParser implements Closeable {
     }
 
     /**
-     * @return The diagnostic collector
-     */
-    public DiagnosticCollector<JavaFileObject> getDiagnosticCollector() {
-        return diagnosticCollector;
-    }
-
-    /**
      * @return The compiler used
      */
     public JavaCompiler getCompiler() {

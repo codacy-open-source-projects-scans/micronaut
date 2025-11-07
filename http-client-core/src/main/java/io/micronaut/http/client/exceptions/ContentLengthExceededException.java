@@ -15,8 +15,6 @@
  */
 package io.micronaut.http.client.exceptions;
 
-import io.micronaut.core.annotation.Internal;
-
 /**
  * @author Graeme Rocher
  * @since 1.0
@@ -36,16 +34,5 @@ public class ContentLengthExceededException extends HttpClientException {
      */
     public ContentLengthExceededException(long maxLength) {
         super("The received length exceeds the maximum allowed content length [" + maxLength + "]");
-    }
-
-    /**
-     * Constructor with a message, useful for adapting from
-     * {@link io.micronaut.http.exceptions.ContentLengthExceededException}.
-     *
-     * @param message The message
-     */
-    @Internal
-    public ContentLengthExceededException(String message) {
-        super(message);
     }
 }

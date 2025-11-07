@@ -166,9 +166,8 @@ public class NettyClientSslBuilder extends SslBuilder<SslContext> implements Cli
     @Override
     protected TrustManagerFactory getTrustManagerFactory(SslConfiguration ssl) {
         try {
-            Optional<KeyStore> trustStore = getTrustStore(ssl);
-            if (trustStore.isPresent()) {
-                return super.getTrustManagerFactory(trustStore.get());
+            if (this.getTrustStore(ssl).isPresent()) {
+                return super.getTrustManagerFactory(ssl);
             } else {
                 if (ssl instanceof AbstractClientSslConfiguration configuration && configuration.isInsecureTrustAllCertificates()) {
                     if (LOG.isWarnEnabled()) {

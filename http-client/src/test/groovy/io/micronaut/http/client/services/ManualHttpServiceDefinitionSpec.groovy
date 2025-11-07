@@ -22,8 +22,8 @@ import io.micronaut.http.annotation.Controller
 import io.micronaut.http.annotation.Get
 import io.micronaut.http.annotation.Post
 import io.micronaut.http.annotation.Put
-import io.micronaut.http.client.HttpClient
 import io.micronaut.http.client.HttpClientConfiguration
+import io.micronaut.http.client.HttpClient
 import io.micronaut.http.client.ServiceHttpClientConfiguration
 import io.micronaut.http.client.annotation.Client
 import io.micronaut.http.client.netty.DefaultHttpClient
@@ -35,6 +35,7 @@ import io.micronaut.runtime.server.EmbeddedServer
 import io.netty.handler.ssl.SslHandler
 import jakarta.inject.Inject
 import jakarta.inject.Singleton
+import reactor.core.publisher.Flux
 import spock.lang.Specification
 
 import java.security.cert.X509Certificate
@@ -212,7 +213,7 @@ class ManualHttpServiceDefinitionSpec extends Specification {
 
 
         when:
-        def client = DefaultHttpClient.builder().uri(embeddedServer.getURI()).configuration(ctx.getBean(HttpClientConfiguration, Qualifiers.byName("client1"))).build()
+        def client = new DefaultHttpClient(embeddedServer.getURI(), ctx.getBean(HttpClientConfiguration, Qualifiers.byName("client1")))
 
         then:
         client.toBlocking().retrieve(HttpRequest.GET("/ssl-test"), String) == DN

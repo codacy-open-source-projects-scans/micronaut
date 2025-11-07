@@ -722,8 +722,7 @@ final class BeanIntrospectionWriter extends AbstractClassFileWriter {
         dispatchWriter.buildGetTargetMethodByIndex(classWriter);
         buildFindIndexedProperty(classWriter);
         buildGetIndexedProperties(classWriter);
-        boolean hasBuilder = annotationMetadata != null &&
-            (annotationMetadata.isPresent(Introspected.class, "builder") || annotationMetadata.hasDeclaredAnnotation("lombok.Builder"));
+        boolean hasBuilder = annotationMetadata != null && annotationMetadata.isPresent(Introspected.class, "builder");
         if (defaultConstructor != null) {
             writeInstantiateMethod(classWriter, defaultConstructor, "instantiate");
             // in case invoked directly or via instantiateUnsafe

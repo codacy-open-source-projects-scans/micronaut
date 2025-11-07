@@ -28,32 +28,29 @@ class PropertyDependencyMissingSpec  extends Specification {
     void "test a useful exception is thrown when a dependency injection failure occurs"() {
         given:
         ApplicationContext context = ApplicationContext.run()
-        var space = " "
 
         when:"A bean is obtained that has a setter with @Inject"
-        context.getBean(MyClassB)
+        context.getBean(B)
 
         then:"The correct error is thrown"
         DependencyInjectionException e = thrown()
-        e.message.normalize() == """\
-Failed to inject value for parameter [propA] of method [setPropA] of class: io.micronaut.inject.failures.PropertyDependencyMissingSpec\$MyClassB
-
-Message: No bean of type [io.micronaut.inject.failures.PropertyDependencyMissingSpec\$MyClassA] exists.$space
-Path Taken:$space
-new i.m.i.f.P\$MyClassB()
-\\---> i.m.i.f.P\$MyClassB#setPropA([MyClassA propA])"""
+        def lines = e.message.lines().toList()
+        lines[0] == 'Failed to inject value for parameter [a] of method [setA] of class: io.micronaut.inject.failures.PropertyDependencyMissingSpec$B'
+        lines[1] == ''
+        lines[2] == 'Message: No bean of type [io.micronaut.inject.failures.PropertyDependencyMissingSpec$A] exists. '
+        lines[3] == 'Path Taken: new B() --> B.setA([A a])'
 
         cleanup:
         context.close()
     }
 
-    static interface MyClassA {
+    static interface A {
 
     }
 
-    static class MyClassB {
+    static class B {
         @Inject
-        MyClassA propA
+        A a
     }
 
 }

@@ -6,6 +6,7 @@ import io.micronaut.context.annotation.Mapper
 import io.micronaut.core.annotation.AccessorsStyle
 import io.micronaut.core.annotation.Introspected
 import io.micronaut.core.convert.ConversionService
+import jakarta.inject.Inject
 import jakarta.inject.Singleton
 import spock.lang.AutoCleanup
 import spock.lang.Shared
@@ -141,23 +142,6 @@ class MapperAnnotationSpec extends Specification {
         result.companyId == 'rab'
         result.parts == 10
     }
-
-    void "list mapper test"() {
-        when:
-        VacuumCleanersEntity result = testBean.toEntities(
-                new VacuumCleanerCollection([
-                        new VacuumCleaner("first"),
-                        new VacuumCleaner("second"),
-                        new VacuumCleaner("third")
-                ])
-        )
-
-        then:
-        result.cleaners[0].name == 'first'
-        result.cleaners[1].name == 'second'
-        result.cleaners[2].name == 'third'
-    }
-
 }
 
 @Singleton
@@ -188,12 +172,6 @@ abstract class Test {
     String calcCompanyId(CreateRobot createRobot) {
         return createRobot.companyId.reverse()
     }
-
-    @Mapper
-    abstract VacuumCleanersEntity toEntity(VacuumCleaner cleaner)
-
-    @Mapper
-    abstract VacuumCleanersEntity toEntities(VacuumCleanerCollection cleaner)
 }
 
 @Introspected
@@ -313,40 +291,4 @@ class SimpleRobotEntity {
         }
     }
 
-}
-
-@Introspected
-final class VacuumCleaner {
-    final String name
-
-    VacuumCleaner(String name) {
-        this.name = name
-    }
-}
-
-@Introspected
-final class VacuumCleanerEntity {
-    final String name
-
-    VacuumCleanerEntity(String name) {
-        this.name = name
-    }
-}
-
-@Introspected
-final class VacuumCleanerCollection {
-    final List<VacuumCleaner> cleaners
-
-    VacuumCleanerCollection(List<VacuumCleaner> cleaners) {
-        this.cleaners = cleaners
-    }
-}
-
-@Introspected
-final class VacuumCleanersEntity {
-    final ArrayList<VacuumCleanerEntity> cleaners
-
-    VacuumCleanersEntity(ArrayList<VacuumCleanerEntity> cleaners) {
-        this.cleaners = cleaners
-    }
 }

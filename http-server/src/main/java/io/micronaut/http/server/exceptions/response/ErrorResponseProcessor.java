@@ -26,7 +26,7 @@ import io.micronaut.http.MutableHttpResponse;
  * @author James Kleeh
  * @since 2.4.0
  */
-@DefaultImplementation(DefaultErrorResponseProcessor.class)
+@DefaultImplementation(HateoasErrorResponseProcessor.class)
 public interface ErrorResponseProcessor<T> {
 
     /**

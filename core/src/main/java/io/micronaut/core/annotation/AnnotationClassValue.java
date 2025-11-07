@@ -85,7 +85,7 @@ public final class AnnotationClassValue<T> implements CharSequence, Named {
     /**
      * Constructs a class value for a type that is present.
      *
-     * @param instance The instance
+     * @param instance The instnace
      * @since 1.1
      */
     @SuppressWarnings("unchecked")
@@ -107,9 +107,6 @@ public final class AnnotationClassValue<T> implements CharSequence, Named {
      * @since 1.1
      */
     public @NonNull Optional<T> getInstance() {
-        if (instance instanceof AnnotationClassValue.UnresolvedClass unresolvedClass) {
-            throw unresolvedClass.error;
-        }
         return Optional.ofNullable(instance);
     }
 
@@ -120,18 +117,7 @@ public final class AnnotationClassValue<T> implements CharSequence, Named {
      * @since 1.1
      */
     public boolean isInstantiated() {
-        return instantiated ||
-            (getInstance().isPresent() && !(getInstance().get() instanceof AnnotationClassValue.UnresolvedClass));
-    }
-
-    /**
-     * fail with an error if unresolved.
-     */
-    @Internal
-    void failIfError() {
-        if (instance instanceof AnnotationClassValue.UnresolvedClass unresolvedClass) {
-            throw unresolvedClass.error;
-        }
+        return instantiated || getInstance().isPresent();
     }
 
     /**
@@ -184,11 +170,4 @@ public final class AnnotationClassValue<T> implements CharSequence, Named {
     public int hashCode() {
         return name.hashCode();
     }
-
-    /**
-     * Represented an unresolved type.
-     * @param error The error that should be thrown
-     */
-    @Internal
-    public record UnresolvedClass(RuntimeException error) { }
 }

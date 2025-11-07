@@ -28,35 +28,33 @@ class ConstructorDependencyFailureSpec extends Specification {
     void "test a useful exception is thrown when a dependency injection failure occurs"() {
         given:
         ApplicationContext context = ApplicationContext.run()
-        var space = " "
 
         when:"A bean that defines a constructor dependency on a missing bean"
-        context.getBean(MyClassB)
+        B b =  context.getBean(B)
 
         then:"The correct error is thrown"
         def e = thrown(DependencyInjectionException)
-        e.message.normalize() == """\
-Failed to inject value for parameter [propA] of class: io.micronaut.inject.failures.ConstructorDependencyFailureSpec\$MyClassB
+        e.message.normalize().contains('''\
+Failed to inject value for parameter [a] of class: io.micronaut.inject.failures.ConstructorDependencyFailureSpec$B
 
-Message: No bean of type [io.micronaut.inject.failures.ConstructorDependencyFailureSpec\$MyClassA] exists.$space
-Path Taken:$space
-new i.m.i.f.C\$MyClassB(MyClassA propA)
-\\---> new i.m.i.f.C\$MyClassB([MyClassA propA])"""
+Message: No bean of type [io.micronaut.inject.failures.ConstructorDependencyFailureSpec$A] exists.''')
+
+        e.message.normalize().contains('Path Taken: new B(A a) --> new B([A a])')
 
         cleanup:
         context.close()
     }
 
-    static interface MyClassA {
+    static interface A {
 
     }
 
-    static class MyClassB {
-        private final MyClassA propA
+    static class B {
+        private final A a
 
         @Inject
-        MyClassB(MyClassA propA) {
-            this.propA = propA
+        B(A a) {
+            this.a = a
         }
     }
 

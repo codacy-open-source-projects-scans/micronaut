@@ -723,14 +723,11 @@ public class AnnotationValue<A extends Annotation> implements AnnotationValueRes
         }
         Object o = values.get(member);
         if (o instanceof AnnotationClassValue<?> annotationClassValue) {
-            annotationClassValue.failIfError();
             return Optional.of(annotationClassValue);
         }
         if (o instanceof AnnotationClassValue<?>[] annotationClassValues) {
             if (annotationClassValues.length > 0) {
-                AnnotationClassValue<?> acv = annotationClassValues[0];
-                acv.failIfError();
-                return Optional.of(acv);
+                return Optional.of(annotationClassValues[0]);
             }
         }
         if (o instanceof String className) {

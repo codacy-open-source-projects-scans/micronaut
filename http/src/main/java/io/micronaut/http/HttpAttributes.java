@@ -83,9 +83,7 @@ public enum HttpAttributes implements CharSequence {
 
     /**
      * Attribute used to store Available HTTP methods on the OPTIONS request.
-     * @deprecated Not used anymore
      */
-    @Deprecated(forRemoval = true, since = "4.7")
     AVAILABLE_HTTP_METHODS(Constants.PREFIX + ".route.availableHttpMethods"),
 
     /**

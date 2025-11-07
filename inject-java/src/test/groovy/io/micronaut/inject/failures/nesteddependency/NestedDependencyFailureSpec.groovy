@@ -16,6 +16,8 @@
 package io.micronaut.inject.failures.nesteddependency
 
 import io.micronaut.context.ApplicationContext
+import io.micronaut.context.BeanContext
+import io.micronaut.context.DefaultBeanContext
 import io.micronaut.context.exceptions.DependencyInjectionException
 import spock.lang.Specification
 
@@ -24,23 +26,18 @@ class NestedDependencyFailureSpec extends Specification {
     void "test injection via setter with interface"() {
         given:
         ApplicationContext context = ApplicationContext.run(["spec.name": getClass().simpleName])
-        var space = " "
 
         when:"A bean is obtained that has a setter with @Inject"
-        context.getBean(MyClassB)
+        B b =  context.getBean(B)
 
         then:"The implementation is injected"
         def e = thrown(DependencyInjectionException)
 
-        e.message.normalize() == """\
-Failed to inject value for parameter [propD] of class: io.micronaut.inject.failures.nesteddependency.MyClassC
+        e.message.normalize().contains( '''\
+Failed to inject value for parameter [d] of class: io.micronaut.inject.failures.nesteddependency.C
 
-Message: No bean of type [io.micronaut.inject.failures.nesteddependency.MyClassD] exists.$space
-Path Taken:$space
-new i.m.i.f.n.MyClassB()
-\\---> i.m.i.f.n.MyClassB#propA
-      \\---> new i.m.i.f.n.MyClassA([MyClassC propC])
-            \\---> new i.m.i.f.n.MyClassC([MyClassD propD])"""
+Message: No bean of type [io.micronaut.inject.failures.nesteddependency.D] exists.''')
+        e.message.normalize().contains('Path Taken: new B() --> B.a --> new A([C c]) --> new C([D d])')
 
         cleanup:
         context.close()

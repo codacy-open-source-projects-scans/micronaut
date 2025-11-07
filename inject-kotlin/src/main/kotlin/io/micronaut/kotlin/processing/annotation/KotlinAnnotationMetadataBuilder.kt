@@ -56,7 +56,7 @@ import java.util.*
 
 internal class KotlinAnnotationMetadataBuilder(
     private val symbolProcessorEnvironment: SymbolProcessorEnvironment,
-    var resolver: Resolver,
+    private val resolver: Resolver,
     private val visitorContext: KotlinVisitorContext
 ) : AbstractAnnotationMetadataBuilder<KSAnnotated, KSAnnotation>() {
 
@@ -79,7 +79,6 @@ internal class KotlinAnnotationMetadataBuilder(
         val annotationMirror = getAnnotationMirror(value.annotationName).orElse(null)
         if (annotationMirror == null) {
             return ClassUtils.forName(value.annotationName, null)
-                .or { ClassUtils.forName(value.annotationName, visitorContext::class.java.classLoader) }
                 .map { it -> it.annotations.any { it.annotationClass.java == Repeatable::class.java } }
                 .orElse(false)
         }

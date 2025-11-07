@@ -6,7 +6,7 @@ pluginManagement {
 }
 
 plugins {
-    id 'io.micronaut.build.shared.settings' version '7.3.0'
+    id 'io.micronaut.build.shared.settings' version '7.2.1'
 }
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
@@ -16,7 +16,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = 'micronaut-parent'
+rootProject.name = 'micronaut'
 
 include "aop"
 include "core-bom"
@@ -89,8 +89,3 @@ include "test-suite-annotation-remapper-visitor"
 
 // benchmarks
 include "benchmarks"
-
-micronautBuild {
-    useStandardizedProjectNames = true
-    nonStandardProjectNamePrefixes.addAll(["test-", "benchmarks"])
-}

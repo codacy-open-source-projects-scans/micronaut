@@ -213,16 +213,10 @@ public class PropertySourcePropertyResolver implements PropertyResolver, AutoClo
     @NonNull
     @Override
     public Collection<String> getPropertyEntries(@NonNull String name) {
-        return getPropertyEntries(name, io.micronaut.core.value.PropertyCatalog.NORMALIZED);
-    }
-
-    @NonNull
-    @Override
-    public Collection<String> getPropertyEntries(@NonNull String name, @NonNull io.micronaut.core.value.PropertyCatalog propertyCatalog) {
         if (StringUtils.isEmpty(name)) {
             return Collections.emptySet();
         }
-        Map<String, Object> entries = resolveEntriesForKey(name, false, PropertyCatalog.valueOf(propertyCatalog.name()));
+        Map<String, Object> entries = resolveEntriesForKey(name, false, PropertyCatalog.NORMALIZED);
         if (entries == null) {
             return Collections.emptySet();
         }
@@ -841,12 +835,10 @@ public class PropertySourcePropertyResolver implements PropertyResolver, AutoClo
         }
     }
 
+
     /**
      * The property catalog to use.
-     *
-     * @deprecated Replaced by {@link io.micronaut.core.value.PropertyCatalog}
      */
-    @Deprecated(forRemoval = true)
     protected enum PropertyCatalog {
         /**
          * The catalog that contains the raw keys.

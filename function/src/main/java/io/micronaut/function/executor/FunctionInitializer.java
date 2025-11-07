@@ -26,6 +26,7 @@ import io.micronaut.http.MediaType;
 import io.micronaut.http.codec.MediaTypeCodecRegistry;
 import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.function.Function;
 
@@ -95,6 +96,7 @@ public class FunctionInitializer extends AbstractExecutor {
      *
      * @param args The arguments passed to main
      * @param supplier The function that executes this function
+     * @throws IOException If an error occurs
      */
     public void run(String[] args, Function<ParseContext, ?> supplier) {
         ApplicationContext applicationContext = this.applicationContext;

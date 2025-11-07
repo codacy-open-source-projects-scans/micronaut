@@ -53,19 +53,7 @@ public abstract class JacksonMediaTypeCodec extends MapperMediaTypeCodec {
                                  CodecConfiguration codecConfiguration,
                                  MediaType mediaType) {
         super(
-            new JacksonDatabindMapper(objectMapperProvider.get()),
-            applicationConfiguration,
-            codecConfiguration,
-            mediaType
-        );
-    }
-
-    public JacksonMediaTypeCodec(BeanProvider<JacksonDatabindMapper> objectMapperProvider,
-                                 ApplicationConfiguration applicationConfiguration,
-                                 MediaType mediaType,
-                                 CodecConfiguration codecConfiguration) {
-        super(
-            objectMapperProvider.get(),
+            () -> new JacksonDatabindMapper(objectMapperProvider.get()),
             applicationConfiguration,
             codecConfiguration,
             mediaType

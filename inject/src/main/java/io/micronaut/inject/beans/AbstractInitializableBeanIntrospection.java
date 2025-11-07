@@ -472,11 +472,9 @@ public abstract class AbstractInitializableBeanIntrospection<B> implements Unsaf
 
             AnnotationValue<Introspected.IntrospectionBuilder> builderAnn = getAnnotationMetadata().findAnnotation(Introspected.class)
                 .flatMap(a -> a.getAnnotation("builder", Introspected.IntrospectionBuilder.class)).orElse(null);
-            Class<?> builderClass = getAnnotationMetadata().classValue(Introspected.class, "builderClass").orElse(null);
-            if (builderAnn != null || builderClass != null) {
-                if (builderClass == null) {
-                    throw new IntrospectionException("Introspection defines invalid builder member for type: " + getBeanType());
-                } else {
+            if (builderAnn != null) {
+                Class<?> builderClass = getAnnotationMetadata().classValue(Introspected.class, "builderClass").orElse(null);
+                if (builderClass != null) {
                     BeanIntrospection<Object> builderIntrospection = (BeanIntrospection<Object>) BeanIntrospection.getIntrospection(builderClass);
                     Collection<BeanMethod<Object, Object>> beanMethods = builderIntrospection.getBeanMethods();
 
@@ -522,6 +520,8 @@ public abstract class AbstractInitializableBeanIntrospection<B> implements Unsaf
                             arguments.toArray(Argument.ZERO_ARGUMENTS)
                         );
                     }
+                } else {
+                    throw new IntrospectionException("Introspection defines invalid builder member for type: " + getBeanType());
                 }
             } else {
                 int constructorLength = constructorArguments.length;

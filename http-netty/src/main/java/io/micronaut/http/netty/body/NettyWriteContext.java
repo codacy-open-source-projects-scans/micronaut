@@ -19,7 +19,11 @@ import io.micronaut.core.annotation.Experimental;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.NonNull;
 import io.micronaut.http.body.ByteBody;
+import io.netty.buffer.ByteBufAllocator;
+import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpResponse;
+import org.reactivestreams.Publisher;
 
 /**
  * This interface is used to write the different kinds of netty responses.
@@ -30,6 +34,12 @@ import io.netty.handler.codec.http.HttpResponse;
 @Experimental
 public interface NettyWriteContext {
     /**
+     * @return The bytebuf allocator.
+     */
+    @NonNull
+    ByteBufAllocator alloc();
+
+    /**
      * Write a response.
      *
      * @param response The response status, headers etc
@@ -38,10 +48,28 @@ public interface NettyWriteContext {
     void write(@NonNull HttpResponse response, @NonNull ByteBody body);
 
     /**
-     * Write a response to a {@code HEAD} request. This is special because it never has a body but
-     * may still have a non-zero {@code Content-Length} header.
+     * Write a full response.
      *
-     * @param response The response status, headers etc
+     * @param response The response to write
      */
-    void writeHeadResponse(@NonNull HttpResponse response);
+    default void writeFull(@NonNull FullHttpResponse response) {
+        writeFull(response, false);
+    }
+
+    /**
+     * Write a full response.
+     *
+     * @param response The response to write
+     * @param headResponse If {@code true}, this is a response to a {@code HEAD} request, so the
+     * {@code Content-Length} header should not be overwritten.
+     */
+    void writeFull(@NonNull FullHttpResponse response, boolean headResponse);
+
+    /**
+     * Write a streamed response.
+     *
+     * @param response The response to write
+     * @param content  The body
+     */
+    void writeStreamed(@NonNull HttpResponse response, @NonNull Publisher<HttpContent> content);
 }

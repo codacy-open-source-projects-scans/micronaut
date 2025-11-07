@@ -15,7 +15,6 @@
  */
 package io.micronaut.http.server.binding;
 
-import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.Nullable;
 import io.micronaut.core.convert.ArgumentConversionContext;
 import io.micronaut.core.propagation.MutablePropagatedContext;
@@ -37,8 +36,7 @@ import java.util.Optional;
  * @author Jonas Konrad
  */
 @Singleton
-@Internal
-final class RouteMatchArgumentBinder implements TypedRequestArgumentBinder<RouteMatch<?>>, FilterArgumentBinderPredicate {
+public final class RouteMatchArgumentBinder implements TypedRequestArgumentBinder<RouteMatch<?>>, FilterArgumentBinderPredicate {
     RouteMatchArgumentBinder() {
     }
 

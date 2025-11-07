@@ -3,13 +3,13 @@ plugins {
 }
 
 dependencies {
-    testAnnotationProcessor(projects.micronautInjectJava)
+    testAnnotationProcessor(projects.injectJava)
     testImplementation(libs.spock)
-    testImplementation(projects.micronautContext)
-    testImplementation(projects.micronautInjectGroovy)
+    testImplementation(projects.context)
+    testImplementation(projects.injectGroovy)
     testImplementation(libs.logback.classic)
-    testImplementation(projects.micronautManagement)
-    testImplementation(projects.micronautHttpClient)
-    testImplementation(projects.micronautJacksonDatabind)
-    testRuntimeOnly(projects.micronautHttpServerNetty)
+    testImplementation(projects.management)
+    testImplementation(projects.httpClient)
+    testImplementation(projects.jacksonDatabind)
+    testRuntimeOnly(projects.httpServerNetty)
 }

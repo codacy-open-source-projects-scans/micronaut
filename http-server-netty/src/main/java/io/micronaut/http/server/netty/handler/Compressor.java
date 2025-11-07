@@ -16,7 +16,6 @@
 package io.micronaut.http.server.netty.handler;
 
 import io.micronaut.core.annotation.Nullable;
-import io.micronaut.http.server.netty.DefaultHttpCompressionStrategy;
 import io.micronaut.http.server.netty.HttpCompressionStrategy;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
@@ -37,6 +36,7 @@ import io.netty.handler.codec.compression.ZlibWrapper;
 import io.netty.handler.codec.compression.Zstd;
 import io.netty.handler.codec.compression.ZstdEncoder;
 import io.netty.handler.codec.compression.ZstdOptions;
+import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpMethod;
@@ -66,16 +66,12 @@ final class Compressor {
         this.gzipOptions = StandardCompressionOptions.gzip(strategy.getCompressionLevel(), stdGzip.windowBits(), stdGzip.memLevel());
         DeflateOptions stdDeflate = StandardCompressionOptions.deflate();
         this.deflateOptions = StandardCompressionOptions.deflate(strategy.getCompressionLevel(), stdDeflate.windowBits(), stdDeflate.memLevel());
-        this.zstdOptions = Zstd.isAvailable()
-            ? StandardCompressionOptions.zstd(strategy.getCompressionLevel(),
-            StandardCompressionOptions.zstd().blockSize(),
-            strategy.getMaxZstdEncodeSize())
-            : null;
+        this.zstdOptions = Zstd.isAvailable() ? StandardCompressionOptions.zstd() : null;
         this.snappyOptions = StandardCompressionOptions.snappy();
     }
 
     @Nullable
-    Session prepare(ChannelHandlerContext ctx, HttpRequest request, HttpResponse response, long contentLength) {
+    Session prepare(ChannelHandlerContext ctx, HttpRequest request, HttpResponse response) {
         // from HttpContentEncoder: isPassthru
         int code = response.status().code();
         if (code < 200 || code == 204 || code == 304 ||
@@ -83,7 +79,11 @@ final class Compressor {
             response.protocolVersion() == HttpVersion.HTTP_1_0) {
             return null;
         }
-        if (strategy instanceof DefaultHttpCompressionStrategy def ? !def.shouldCompress(response, contentLength) : !strategy.shouldCompress(response)) {
+        // special case for FHR to keep behavior identical to HttpContentEncoder
+        if (response instanceof FullHttpResponse fhr && !fhr.content().isReadable()) {
+            return null;
+        }
+        if (!strategy.shouldCompress(response)) {
             return null;
         }
         if (response.headers().contains(HttpHeaderNames.CONTENT_ENCODING)) {
@@ -101,7 +101,7 @@ final class Compressor {
         response.headers().add(HttpHeaderNames.CONTENT_ENCODING, encoding.contentEncoding);
         ChannelHandler handler = switch (encoding) {
             case BR -> makeBrotliEncoder();
-            case ZSTD -> new ZstdEncoder(zstdOptions.compressionLevel(), zstdOptions.blockSize(), strategy.getMaxZstdEncodeSize());
+            case ZSTD -> new ZstdEncoder(zstdOptions.compressionLevel(), zstdOptions.blockSize(), zstdOptions.maxEncodeSize());
             case SNAPPY -> new SnappyFrameEncoder();
             case GZIP -> ZlibCodecFactory.newZlibEncoder(ZlibWrapper.GZIP, gzipOptions.compressionLevel(), gzipOptions.windowBits(), gzipOptions.memLevel());
             case DEFLATE -> ZlibCodecFactory.newZlibEncoder(ZlibWrapper.ZLIB, deflateOptions.compressionLevel(), deflateOptions.windowBits(), deflateOptions.memLevel());

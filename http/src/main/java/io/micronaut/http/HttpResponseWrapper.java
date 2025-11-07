@@ -42,9 +42,7 @@ public class HttpResponseWrapper<B> extends HttpMessageWrapper<B> implements Htt
 
     @Override
     public HttpResponse<B> getDelegate() {
-        HttpMessage<B> delegate = super.getDelegate();
-        // this weird cast structure avoids type pollution
-        return delegate instanceof MutableHttpResponse<B> mhr ? mhr : (HttpResponse<B>) delegate;
+        return (HttpResponse<B>) super.getDelegate();
     }
 
 }

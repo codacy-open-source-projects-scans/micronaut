@@ -15,6 +15,7 @@
  */
 package io.micronaut.http.filter;
 
+import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.NonNull;
 import io.micronaut.core.annotation.Nullable;
@@ -120,6 +121,7 @@ record MethodFilter<T>(FilterOrder order,
         for (int i = 0; i < arguments.length; i++) {
             Argument<?> argument = arguments[i];
             Class<?> argumentType = argument.getType();
+            AnnotationMetadata annotationMetadata = argument.getAnnotationMetadata();
             if (argumentType.isAssignableFrom(HttpRequest.class)) {
                 fulfilled[i] = ctx -> ctx.request;
             } else if (argumentType.isAssignableFrom(ServerHttpRequest.class)) {
@@ -457,14 +459,14 @@ record MethodFilter<T>(FilterOrder order,
                 if (returnValue == null && !nullable) {
                     return next.handle(context, null, continuation);
                 }
-                Publisher<Object> converted = Publishers.convertToPublisher(conversionService, returnValue);
+                Publisher<?> publisher = ReactivePropagation.propagate(
+                    context.propagatedContext(),
+                    Publishers.convertToPublisher(conversionService, returnValue)
+                );
                 if (continuation instanceof ResultAwareContinuation resultAwareContinuation) {
-                    return resultAwareContinuation.processResult(ReactivePropagation.propagate(
-                        context.propagatedContext(),
-                        converted
-                    ));
+                    return resultAwareContinuation.processResult(publisher);
                 }
-                return ReactiveExecutionFlow.fromPublisherEager(converted, context.propagatedContext()).flatMap(v -> {
+                return ReactiveExecutionFlow.fromPublisher(publisher).flatMap(v -> {
                     try {
                         return next.handle(context, v, continuation);
                     } catch (Throwable e) {

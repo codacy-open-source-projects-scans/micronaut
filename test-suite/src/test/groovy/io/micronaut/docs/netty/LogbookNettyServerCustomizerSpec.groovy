@@ -342,7 +342,8 @@ class LogbookNettyServerCustomizerSpec extends Specification {
                 'POST /logbook/logged',
                 'bar',
                 '200',
-                'bar',
+                // second response body not included because of logbook bug: https://github.com/zalando/logbook/issues/1216
+                //'bar',
         ]
 
         cleanup:
@@ -483,7 +484,6 @@ class LogbookNettyServerCustomizerSpec extends Specification {
     }
 
     @Controller("/logbook/logged")
-    @Requires(property = 'spec.name', value = 'LogbookNettyServerCustomizerSpec')
     static class LoggedController {
         @Get("/")
         @Produces(MediaType.TEXT_PLAIN)

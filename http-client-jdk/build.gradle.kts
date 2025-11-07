@@ -9,12 +9,12 @@ micronautBuild {
 }
 
 dependencies {
-    annotationProcessor(projects.micronautInjectJava)
-    api(projects.micronautHttpClientCore)
-    compileOnly(projects.micronautHttpClient)
+    annotationProcessor(projects.injectJava)
+    api(projects.httpClientCore)
+    compileOnly(projects.httpClient)
     implementation(libs.managed.reactor)
-    testImplementation(projects.micronautJacksonDatabind)
-    testImplementation(projects.micronautHttpServerNetty)
+    testImplementation(projects.jacksonDatabind)
+    testImplementation(projects.httpServerNetty)
     testImplementation(libs.bcpkix)
     testImplementation(libs.testcontainers.spock)
 }

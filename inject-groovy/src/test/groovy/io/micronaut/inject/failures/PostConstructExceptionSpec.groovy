@@ -32,41 +32,39 @@ class PostConstructExceptionSpec extends Specification {
         ApplicationContext context = ApplicationContext.run()
 
         when:"A bean is obtained that has a setter with @Inject"
-        MyClassB b =  context.getBean(MyClassB)
+        B b =  context.getBean(B)
 
         then:"The implementation is injected"
         BeanInstantiationException e = thrown()
-        e.message.normalize() == '''\
-Error instantiating bean of type  [io.micronaut.inject.failures.PostConstructExceptionSpec$MyClassB]
-
-Message: bad
-Path Taken:
-new i.m.i.f.P$MyClassB()'''
+        def ls = CachedEnvironment.getProperty("line.separator")
+        e.message == 'Error instantiating bean of type  [io.micronaut.inject.failures.PostConstructExceptionSpec$B]' + ls + ls +
+                'Message: bad' + ls +
+                'Path Taken: new B()'
 
         cleanup:
         context.close()
     }
 
     @Singleton
-    static class MyClassA {
+    static class A {
 
     }
     @Singleton
-    static class MyClassB {
+    static class B {
 
         boolean setupComplete = false
         boolean injectedFirst = false
 
-        @Inject protected MyClassA another
-        private MyClassA propA
+        @Inject protected A another
+        private A a
 
         @Inject
-        void setPropA(MyClassA propA) {
-            this.propA = propA
+        void setA(A a ) {
+            this.a = a
         }
 
-        MyClassA getPropA() {
-            return propA
+        A getA() {
+            return a
         }
 
         @PostConstruct

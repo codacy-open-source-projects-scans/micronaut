@@ -30,43 +30,40 @@ class ConstructorExceptionSpec extends Specification {
         ApplicationContext context = ApplicationContext.run()
 
         when:"A bean is obtained that has a setter with @Inject"
-        MyClassB b =  context.getBean(MyClassB)
+        B b =  context.getBean(B)
 
         then:"The implementation is injected"
         def e = thrown(BeanInstantiationException)
         //e.cause.message == 'bad'
         e.message.normalize() == '''\
-Error instantiating bean of type  [io.micronaut.inject.failures.ConstructorExceptionSpec$MyClassA]
+Error instantiating bean of type  [io.micronaut.inject.failures.ConstructorExceptionSpec$A]
 
 Message: bad
-Path Taken:
-new i.m.i.f.C$MyClassB()
-\\---> i.m.i.f.C$MyClassB#propA
-      \\---> new i.m.i.f.C$MyClassA([MyClassC propC])'''
+Path Taken: new B() --> B.a --> new A([C c])'''
 
         cleanup:
         context.close()
     }
 
     @Singleton
-    static class MyClassC {
-        MyClassC() {
+    static class C {
+        C() {
             throw new RuntimeException("bad")
         }
     }
     @Singleton
-    static class MyClassA {
-        MyClassA(MyClassC propC) {
+    static class A {
+        A(C c) {
 
         }
     }
 
-    static class MyClassB {
+    static class B {
         @Inject
-        private MyClassA propA
+        private A a
 
-        MyClassA getA() {
-            return this.propA
+        A getA() {
+            return this.a
         }
     }
 

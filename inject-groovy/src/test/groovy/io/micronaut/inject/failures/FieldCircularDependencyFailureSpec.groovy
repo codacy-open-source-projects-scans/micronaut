@@ -31,35 +31,34 @@ class FieldCircularDependencyFailureSpec extends Specification {
         ApplicationContext context = ApplicationContext.run()
 
         when:"A bean is obtained that has a setter with @Inject"
-        MyClassB b =  context.getBean(MyClassB)
+        B b =  context.getBean(B)
 
         then:"The implementation is injected"
         def e = thrown(CircularDependencyException)
         e.message.normalize() == '''\
-Failed to inject value for field [propA] of class: io.micronaut.inject.failures.FieldCircularDependencyFailureSpec$MyClassB
+Failed to inject value for field [a] of class: io.micronaut.inject.failures.FieldCircularDependencyFailureSpec$B
 
 Message: Circular dependency detected
-Path Taken:
-new i.m.i.f.F$MyClassB()
-      \\---> i.m.i.f.F$MyClassB#propA
-            ^  \\---> new i.m.i.f.F$MyClassA([MyClassC propC])
-            |        \\---> i.m.i.f.F$MyClassC#propB
-            |              |
-            +--------------+'''
+Path Taken: 
+new B() --> B.a --> new A([C c]) --> C.b
+^                                     |
+|                                     |
+|                                     |
++-------------------------------------+'''
         cleanup:
         context.close()
     }
 
-    static class MyClassC {
-        @Inject protected MyClassB propB
+    static class C {
+        @Inject protected B b
     }
     @Singleton
-    static class MyClassA {
-        MyClassA(MyClassC propC) {}
+    static class A {
+        A(C c) {}
     }
 
     @Singleton
-    static class MyClassB {
-        @Inject protected MyClassA propA
+    static class B {
+        @Inject protected A a
     }
 }

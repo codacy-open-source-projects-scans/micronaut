@@ -23,8 +23,6 @@ import io.micronaut.http.client.HttpClientConfiguration;
 import io.micronaut.http.client.HttpClientFactory;
 import io.micronaut.http.client.ProxyHttpClient;
 import io.micronaut.http.client.ProxyHttpClientFactory;
-import io.micronaut.http.client.RawHttpClient;
-import io.micronaut.http.client.RawHttpClientFactory;
 import io.micronaut.http.client.StreamingHttpClient;
 import io.micronaut.http.client.StreamingHttpClientFactory;
 import io.micronaut.http.client.sse.SseClient;
@@ -32,9 +30,9 @@ import io.micronaut.http.client.sse.SseClientFactory;
 import io.micronaut.websocket.WebSocketClient;
 import io.micronaut.websocket.WebSocketClientFactory;
 
-import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.net.URI;
 
 /**
  * A factory to create Netty HTTP clients.
@@ -48,8 +46,7 @@ public class NettyHttpClientFactory implements
         SseClientFactory,
         ProxyHttpClientFactory,
         StreamingHttpClientFactory,
-        WebSocketClientFactory,
-        RawHttpClientFactory {
+        WebSocketClientFactory {
 
     @NonNull
     @Override
@@ -111,16 +108,6 @@ public class NettyHttpClientFactory implements
         return createNettyClient(uri, configuration);
     }
 
-    @Override
-    public @NonNull RawHttpClient createRawClient(@Nullable URI url) {
-        return createNettyClient(url);
-    }
-
-    @Override
-    public @NonNull RawHttpClient createRawClient(@Nullable URI url, @NonNull HttpClientConfiguration configuration) {
-        return createNettyClient(url, configuration);
-    }
-
     private DefaultHttpClient createNettyClient(URL url) {
         try {
             return createNettyClient(url != null ? url.toURI() : null);
@@ -138,10 +125,10 @@ public class NettyHttpClientFactory implements
     }
 
     private DefaultHttpClient createNettyClient(URI uri) {
-        return DefaultHttpClient.builder().uri(uri).build();
+        return new DefaultHttpClient(uri);
     }
 
     private DefaultHttpClient createNettyClient(URI uri, HttpClientConfiguration configuration) {
-        return DefaultHttpClient.builder().uri(uri).configuration(configuration).build();
+        return new DefaultHttpClient(uri, configuration);
     }
 }
